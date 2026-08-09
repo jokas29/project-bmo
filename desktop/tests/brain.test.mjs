@@ -9,7 +9,9 @@ import {
 } from "../src/brain/conversation-session.ts";
 import {
   OLLAMA_CHAT_URL,
+  OLLAMA_KEEP_ALIVE,
   OLLAMA_MODEL,
+  OLLAMA_NUM_PREDICT,
   createOllamaClient,
 } from "../src/brain/ollama-client.ts";
 import { BMO_SYSTEM_PROMPT } from "../src/brain/personality.ts";
@@ -51,6 +53,10 @@ test("Ollama request uses the local model, non-streaming mode and system prompt"
   assert.equal(body.model, "qwen3.5:4b");
   assert.equal(body.think, false);
   assert.equal(body.stream, false);
+  assert.equal(body.keep_alive, OLLAMA_KEEP_ALIVE);
+  assert.equal(body.keep_alive, "10m");
+  assert.equal(body.options.num_predict, OLLAMA_NUM_PREDICT);
+  assert.equal(body.options.num_predict, 256);
   assert.deepEqual(body.messages, messages);
   assert.equal(body.messages[0].role, "system");
   assert.equal(body.messages[0].content, BMO_SYSTEM_PROMPT);
