@@ -3,7 +3,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { CHARACTER_VISUALS } from "./assets/character/character-visuals";
 import { createConversationSession } from "./brain/conversation-session";
-import { createOllamaClient } from "./brain/ollama-client";
+import {
+  createOllamaClient,
+  warmUpOllama,
+} from "./brain/ollama-client";
 import { BMO_SYSTEM_PROMPT } from "./brain/personality";
 import { createCharacterRenderer } from "./character-renderer";
 import { createCharacterStateController } from "./character-state";
@@ -170,6 +173,13 @@ let initializationCancelled = false;
 let destroyInitializedFeatures = (): void => {};
 
 async function initializeApp(): Promise<void> {
+  void warmUpOllama({ transport: tauriFetch }).catch((error: unknown) => {
+    console.warn(
+      "BMO brain warmup failed; the first reply may be slower.",
+      error,
+    );
+  });
+
   const memory = createMemoryService({
     store: createTauriMemoryStore(),
   });
