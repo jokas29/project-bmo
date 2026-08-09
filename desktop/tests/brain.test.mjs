@@ -13,6 +13,7 @@ import {
   OLLAMA_MODEL,
   OLLAMA_NUM_PREDICT,
   createOllamaClient,
+  warmUpOllama,
 } from "../src/brain/ollama-client.ts";
 import { BMO_SYSTEM_PROMPT } from "../src/brain/personality.ts";
 
@@ -25,6 +26,34 @@ function jsonResponse(payload, { ok = true, status = 200 } = {}) {
     },
   };
 }
+
+test("Ollama warmup preloads the local model without generating a reply", async () => {
+  let capturedUrl;
+  let capturedOptions;
+
+  await warmUpOllama({
+    async transport(url, options) {
+      capturedUrl = url;
+      capturedOptions = options;
+      return jsonResponse({ done: true });
+    },
+  });
+
+  const body = JSON.parse(capturedOptions.body);
+
+  assert.equal(capturedUrl, OLLAMA_CHAT_URL);
+  assert.equal(capturedOptions.method, "POST");
+  assert.equal(capturedOptions.connectTimeout, 5_000);
+  assert.equal(capturedOptions.maxRedirections, 0);
+  assert.equal(body.model, OLLAMA_MODEL);
+  assert.equal(body.model, "qwen3.5:4b");
+  assert.equal(body.think, false);
+  assert.equal(body.stream, false);
+  assert.equal(body.keep_alive, OLLAMA_KEEP_ALIVE);
+  assert.equal(body.keep_alive, "10m");
+  assert.deepEqual(body.messages, []);
+  assert.equal(body.options, undefined);
+});
 
 test("Ollama request uses the local model, non-streaming mode and system prompt", async () => {
   let capturedUrl;

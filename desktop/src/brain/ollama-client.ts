@@ -34,6 +34,14 @@ interface OllamaChatRequest {
   readonly messages: readonly BrainMessage[];
 }
 
+interface OllamaWarmupRequest {
+  readonly model: string;
+  readonly think: false;
+  readonly stream: false;
+  readonly keep_alive: string;
+  readonly messages: readonly [];
+}
+
 function readAssistantContent(payload: unknown): string {
   if (typeof payload !== "object" || payload === null) {
     throw new BrainClientError(
@@ -61,6 +69,61 @@ function readAssistantContent(payload: unknown): string {
   }
 
   return content.trim();
+}
+
+export async function warmUpOllama({
+  transport,
+}: OllamaClientOptions): Promise<void> {
+  const request: OllamaWarmupRequest = {
+    model: OLLAMA_MODEL,
+    think: false,
+    stream: false,
+    keep_alive: OLLAMA_KEEP_ALIVE,
+    messages: [],
+  };
+
+  let response: Response;
+
+  try {
+    response = await transport(OLLAMA_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+      connectTimeout: 5_000,
+      maxRedirections: 0,
+    });
+  } catch {
+    throw new BrainClientError(
+      "unavailable",
+      "No pude precargar el cerebro local.",
+    );
+  }
+
+  if (!response.ok) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // El estado HTTP sigue siendo el error útil.
+    }
+
+    throw new BrainClientError(
+      "http-error",
+      `Ollama respondió con un error durante la precarga (HTTP ${response.status}).`,
+      response.status,
+    );
+  }
+
+  try {
+    await response.json();
+  } catch {
+    throw new BrainClientError(
+      "invalid-response",
+      "Ollama devolvió una respuesta inválida durante la precarga.",
+    );
+  }
 }
 
 export function createOllamaClient({
