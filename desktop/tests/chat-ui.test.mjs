@@ -96,7 +96,7 @@ test("chat UI moves through thinking, talking and idle on a valid reply", async 
 
   harness = createHarness({
     async sendMessage(message) {
-      assert.equal(message, "Mi fruta favorita es el mango.");
+      assert.equal(message, "  Mi fruta favorita es el mango.  ");
       stateWhileSending = harness.states.at(-1);
       return "¡Entendido, tu fruta favorita es el mango!";
     },

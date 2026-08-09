@@ -147,6 +147,33 @@ test("a multi-turn session preserves system, user and assistant context", async 
   ]);
 });
 
+test("a session resolves a dynamic system prompt before every request", async () => {
+  const payloads = [];
+  let currentPrompt = "prompt inicial";
+  const brain = {
+    async generateReply(messages) {
+      payloads.push(messages.map((message) => ({ ...message })));
+      return `respuesta ${payloads.length}`;
+    },
+  };
+  const session = createConversationSession({
+    brain,
+    systemPrompt: () => currentPrompt,
+  });
+
+  await session.sendMessage("primero");
+  currentPrompt = "prompt actualizado";
+  await session.sendMessage("segundo");
+
+  assert.equal(payloads[0][0].content, "prompt inicial");
+  assert.equal(payloads[1][0].content, "prompt actualizado");
+  assert.deepEqual(payloads[1].slice(1), [
+    { role: "user", content: "primero" },
+    { role: "assistant", content: "respuesta 1" },
+    { role: "user", content: "segundo" },
+  ]);
+});
+
 test("session history keeps the system prompt and the latest 16 conversation messages", async () => {
   const payloads = [];
   let round = 0;
