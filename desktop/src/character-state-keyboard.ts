@@ -17,9 +17,27 @@ const DEVELOPMENT_STATE_BY_KEY: Readonly<
 export function enableDevelopmentStateControls(
   controller: CharacterStateController,
   target: Window = window,
+  canChangeState: () => boolean = () => true,
 ): () => void {
   const handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+    if (
+      event.repeat ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      !canChangeState()
+    ) {
+      return;
+    }
+
+    const eventTarget = event.target;
+
+    if (
+      eventTarget instanceof Element &&
+      eventTarget.closest(
+        'input, textarea, select, button, [contenteditable="true"]',
+      ) !== null
+    ) {
       return;
     }
 

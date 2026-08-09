@@ -14,6 +14,7 @@ export type CharacterStateRenderer = (state: CharacterState) => void;
 export interface CharacterStateController {
   setCharacterState(state: CharacterState): void;
   getCharacterState(): CharacterState;
+  getCharacterStateRevision(): number;
   destroy(): void;
 }
 
@@ -33,6 +34,7 @@ export function createCharacterStateController(
   let currentState = initialState;
   let automaticBlinkTimer: number | undefined;
   let blinkEndTimer: number | undefined;
+  let stateRevision = 0;
   let destroyed = false;
 
   function clearTimers(): void {
@@ -78,6 +80,7 @@ export function createCharacterStateController(
 
     clearTimers();
     currentState = state;
+    stateRevision += 1;
     render(currentState);
 
     if (currentState === "idle") {
@@ -91,6 +94,10 @@ export function createCharacterStateController(
     return currentState;
   }
 
+  function getCharacterStateRevision(): number {
+    return stateRevision;
+  }
+
   function destroy(): void {
     destroyed = true;
     clearTimers();
@@ -101,6 +108,7 @@ export function createCharacterStateController(
   return {
     setCharacterState,
     getCharacterState,
+    getCharacterStateRevision,
     destroy,
   };
 }
