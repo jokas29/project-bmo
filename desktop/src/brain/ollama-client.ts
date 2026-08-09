@@ -6,6 +6,8 @@ import {
 
 export const OLLAMA_CHAT_URL = "http://localhost:11434/api/chat";
 export const OLLAMA_MODEL = "qwen3.5:4b";
+export const OLLAMA_KEEP_ALIVE = "10m";
+export const OLLAMA_NUM_PREDICT = 256;
 
 export interface HttpRequestOptions extends RequestInit {
   readonly connectTimeout?: number;
@@ -25,6 +27,10 @@ interface OllamaChatRequest {
   readonly model: string;
   readonly think: false;
   readonly stream: false;
+  readonly keep_alive: string;
+  readonly options: {
+    readonly num_predict: number;
+  };
   readonly messages: readonly BrainMessage[];
 }
 
@@ -66,6 +72,10 @@ export function createOllamaClient({
         model: OLLAMA_MODEL,
         think: false,
         stream: false,
+        keep_alive: OLLAMA_KEEP_ALIVE,
+        options: {
+          num_predict: OLLAMA_NUM_PREDICT,
+        },
         messages: messages.map((message) => ({ ...message })),
       };
 
