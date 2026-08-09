@@ -17,6 +17,8 @@ import { buildSystemPromptWithMemories } from "./memory/memory-context";
 import { createMemoryService } from "./memory/memory-service";
 import { createMemoryUi } from "./memory/memory-ui";
 import { createTauriMemoryStore } from "./memory/tauri-memory-store";
+import { createTauriVoiceClient } from "./voice/voice-client";
+import { createVoiceUi } from "./voice/voice-ui";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <main class="stage">
@@ -77,6 +79,16 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
         placeholder="Habla con BMO…"
         disabled
       />
+      <button
+        class="voice-button"
+        id="voice-button"
+        type="button"
+        aria-label="Hablar con BMO"
+        aria-pressed="false"
+        disabled
+      >
+        <span aria-hidden="true">🎙</span>
+      </button>
       <button class="chat-submit" id="chat-submit" type="submit" disabled>
         Enviar
       </button>
@@ -143,6 +155,8 @@ const chatForm = document.querySelector<HTMLFormElement>("#chat-form")!;
 const chatInput = document.querySelector<HTMLInputElement>("#chat-input")!;
 const chatSubmit =
   document.querySelector<HTMLButtonElement>("#chat-submit")!;
+const voiceButton =
+  document.querySelector<HTMLButtonElement>("#voice-button")!;
 const chatOutput = document.querySelector<HTMLElement>("#chat-output")!;
 const memoryOpenButton =
   document.querySelector<HTMLButtonElement>("#memory-open")!;
@@ -216,19 +230,33 @@ async function initializeApp(): Promise<void> {
     confirmationCancelButton: memoryConfirmCancel,
     confirmationDeleteButton: memoryConfirmDelete,
   });
-  const disableDevelopmentStateControls = enableDevelopmentStateControls(
-    characterState,
-    window,
-    () => !conversation.isPending() && !memoryUi.isOpen(),
-  );
+  const voiceUi = createVoiceUi({
+    button: voiceButton,
+    input: chatInput,
+    submitButton: chatSubmit,
+    busyControls: [memoryOpenButton],
+    output: chatOutput,
+    client: createTauriVoiceClient(),
+    canStart: () => !conversation.isPending() && !memoryUi.isOpen(),
+  });
   const chatUi = createChatUi({
     form: chatForm,
     input: chatInput,
     submitButton: chatSubmit,
+    busyControls: [voiceButton],
     output: chatOutput,
     conversation,
     characterState,
+    canSubmit: () => !voiceUi.isBusy(),
   });
+  const disableDevelopmentStateControls = enableDevelopmentStateControls(
+    characterState,
+    window,
+    () =>
+      !conversation.isPending() &&
+      !memoryUi.isOpen() &&
+      !voiceUi.isBusy(),
+  );
 
   chatInput.disabled = false;
   chatSubmit.disabled = false;
@@ -238,6 +266,7 @@ async function initializeApp(): Promise<void> {
   chatInput.focus();
 
   destroyInitializedFeatures = () => {
+    voiceUi.destroy();
     chatUi.destroy();
     disableDevelopmentStateControls();
     memoryUi.destroy();

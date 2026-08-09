@@ -235,11 +235,12 @@ body {
   min-width: 0;
 
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 40px auto;
   gap: 6px;
 }
 
 .chat-input,
+.voice-button,
 .chat-submit,
 .memory-dialog button {
   height: 40px;
@@ -267,6 +268,33 @@ body {
   color: rgba(20, 55, 49, 0.58);
 }
 
+.voice-button {
+  width: 40px;
+  padding: 0;
+
+  display: grid;
+  place-items: center;
+
+  background: rgb(219, 241, 231);
+  color: rgb(20, 55, 49);
+
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.voice-button[data-voice-state="recording"] {
+  border-color: rgb(139, 42, 37);
+  background: rgb(177, 55, 47);
+  color: white;
+
+  animation: voice-recording-pulse 1.1s ease-in-out infinite;
+}
+
+.voice-button[data-voice-state="transcribing"] {
+  background: rgb(202, 225, 216);
+  color: rgb(53, 88, 80);
+}
+
 .chat-submit {
   padding: 0 12px;
 
@@ -278,6 +306,7 @@ body {
 }
 
 .chat-input:focus-visible,
+.voice-button:focus-visible,
 .chat-submit:focus-visible,
 .memory-open:focus-visible,
 .memory-dialog button:focus-visible {
@@ -286,6 +315,7 @@ body {
 }
 
 .chat-input:disabled,
+.voice-button:disabled,
 .chat-submit:disabled,
 .memory-open:disabled,
 .memory-dialog button:disabled {
@@ -611,11 +641,26 @@ body {
   }
 }
 
+@keyframes voice-recording-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(177, 55, 47, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px rgba(177, 55, 47, 0.12);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bmo[data-character-state="thinking"] .eyes,
   .bmo[data-character-state="thinking"] .screen::after,
   .bmo[data-character-state="talking"] .mouth,
   .bmo[data-character-state="sleeping"] .screen::after {
+    animation: none;
+  }
+
+  .voice-button[data-voice-state="recording"] {
     animation: none;
   }
 }
