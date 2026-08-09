@@ -24,7 +24,7 @@ export interface ConversationSession {
 
 interface ConversationSessionOptions {
   brain: BrainClient;
-  systemPrompt: string;
+  systemPrompt: string | (() => string);
   maxConversationMessages?: number;
 }
 
@@ -45,12 +45,16 @@ export function createConversationSession({
     throw new Error("maxConversationMessages must be an even integer of 2 or more");
   }
 
-  const systemMessage: BrainMessage = {
-    role: "system",
-    content: systemPrompt,
-  };
   let conversationMessages: BrainMessage[] = [];
   let pending = false;
+
+  function createSystemMessage(): BrainMessage {
+    return {
+      role: "system",
+      content:
+        typeof systemPrompt === "function" ? systemPrompt() : systemPrompt,
+    };
+  }
 
   async function sendMessage(input: string): Promise<string> {
     if (pending) {
@@ -76,7 +80,7 @@ export function createConversationSession({
         : conversationMessages.slice(-retainedCount);
     const userMessage: BrainMessage = { role: "user", content };
     const requestMessages = [
-      cloneMessage(systemMessage),
+      createSystemMessage(),
       ...retainedHistory.map(cloneMessage),
       cloneMessage(userMessage),
     ];
@@ -104,7 +108,7 @@ export function createConversationSession({
 
   function getMessages(): readonly BrainMessage[] {
     return [
-      cloneMessage(systemMessage),
+      createSystemMessage(),
       ...conversationMessages.map(cloneMessage),
     ];
   }

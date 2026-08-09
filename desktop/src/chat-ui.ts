@@ -4,6 +4,7 @@ import {
   type ConversationSession,
 } from "./brain/conversation-session.ts";
 import type { CharacterStateController } from "./character-state";
+import { MemoryServiceError } from "./memory/memory-service.ts";
 
 const TALKING_STATE_DURATION_MS = 1_800;
 
@@ -23,7 +24,8 @@ interface ChatUiOptions {
 function userFacingError(error: unknown): string {
   if (
     error instanceof BrainClientError ||
-    error instanceof ConversationSessionError
+    error instanceof ConversationSessionError ||
+    error instanceof MemoryServiceError
   ) {
     return error.message;
   }
@@ -61,9 +63,9 @@ export function createChatUi({
   }
 
   async function submitMessage(): Promise<void> {
-    const message = input.value.trim();
+    const message = input.value;
 
-    if (message.length === 0) {
+    if (message.trim().length === 0) {
       setOutput("error", "Escribe un mensaje antes de enviarlo.");
       input.focus();
       return;
