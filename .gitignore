@@ -6,3 +6,12 @@ dist/
 build/
 target/
 *.log
+
+# Private/local voice assets must never be committed to the public repo.
+.private/
+private/
+voice-private/
+voice-data/
+voice-models/
+consent-private/
+*.age
