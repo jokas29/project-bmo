@@ -9,7 +9,9 @@ import {
 } from "../src/brain/conversation-session.ts";
 import {
   OLLAMA_CHAT_URL,
+  OLLAMA_KEEP_ALIVE,
   OLLAMA_MODEL,
+  OLLAMA_NUM_PREDICT,
   createOllamaClient,
 } from "../src/brain/ollama-client.ts";
 import { BMO_SYSTEM_PROMPT } from "../src/brain/personality.ts";
