@@ -21,15 +21,56 @@ body {
 .stage {
   width: 100%;
   height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+
+  display: grid;
+  grid-template-rows: 72px minmax(0, 1fr) 40px;
+  gap: 6px;
+  padding: 10px;
+
   background: transparent;
 }
 
+.chat-output {
+  min-width: 0;
+  overflow-y: auto;
+
+  padding: 8px 10px;
+
+  border: 2px solid rgba(20, 55, 49, 0.32);
+  border-radius: 14px;
+
+  background: rgba(228, 247, 238, 0.94);
+  color: rgb(20, 55, 49);
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.3;
+
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.chat-output[data-kind="status"] {
+  color: rgb(53, 88, 80);
+}
+
+.chat-output[data-kind="error"] {
+  border-color: rgba(153, 60, 47, 0.5);
+  background: rgba(255, 235, 229, 0.96);
+  color: rgb(118, 37, 28);
+}
+
+.character-slot {
+  min-height: 0;
+
+  display: grid;
+  place-items: center;
+}
+
 .bmo {
-  width: 220px;
-  height: 280px;
+  width: 180px;
+  height: 229px;
 
   position: relative;
 
@@ -160,6 +201,75 @@ body {
   letter-spacing: 4px;
 
   color: rgb(20, 55, 49);
+}
+
+.chat-composer {
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.chat-input,
+.chat-submit {
+  height: 40px;
+
+  border: 2px solid rgba(20, 55, 49, 0.42);
+  border-radius: 12px;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+
+.chat-input {
+  min-width: 0;
+  padding: 0 11px;
+
+  outline: none;
+  background: rgba(248, 255, 251, 0.96);
+  color: rgb(20, 55, 49);
+
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.chat-input::placeholder {
+  color: rgba(20, 55, 49, 0.58);
+}
+
+.chat-submit {
+  padding: 0 12px;
+
+  background: rgb(30, 105, 89);
+  color: white;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.chat-input:focus-visible,
+.chat-submit:focus-visible {
+  border-color: rgb(16, 92, 78);
+  box-shadow: 0 0 0 2px rgba(236, 255, 248, 0.9);
+}
+
+.chat-input:disabled,
+.chat-submit:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .bmo[data-character-state="blink"] .eye,
