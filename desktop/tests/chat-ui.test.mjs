@@ -4,7 +4,7 @@ import test from "node:test";
 import { BrainClientError } from "../src/brain/brain-client.ts";
 import { createChatUi } from "../src/chat-ui.ts";
 
-function createHarness({ sendMessage, pending = false }) {
+function createHarness({ sendMessage, pending = false, canSubmit = () => true }) {
   let submitListener;
   let timerCallback;
   const states = ["idle"];
@@ -28,6 +28,7 @@ function createHarness({ sendMessage, pending = false }) {
     },
   };
   const submitButton = { disabled: false };
+  const busyControl = { disabled: false };
   const output = { dataset: {}, textContent: "" };
   const conversation = {
     isPending() {
@@ -63,12 +64,15 @@ function createHarness({ sendMessage, pending = false }) {
     form,
     input,
     submitButton,
+    busyControls: [busyControl],
     output,
     conversation,
     characterState,
+    canSubmit,
   });
 
   return {
+    busyControl,
     form,
     input,
     output,
@@ -106,6 +110,7 @@ test("chat UI moves through thinking, talking and idle on a valid reply", async 
   harness.submit();
   assert.equal(harness.form.attributes["aria-busy"], "true");
   assert.equal(harness.input.disabled, true);
+  assert.equal(harness.busyControl.disabled, true);
   assert.equal(harness.output.textContent, "BMO está pensando…");
 
   await Promise.resolve();
@@ -121,6 +126,7 @@ test("chat UI moves through thinking, talking and idle on a valid reply", async 
   assert.equal(harness.input.value, "");
   assert.equal(harness.input.disabled, false);
   assert.equal(harness.submitButton.disabled, false);
+  assert.equal(harness.busyControl.disabled, false);
 
   harness.finishTalking();
   assert.equal(harness.states.at(-1), "idle");
@@ -203,4 +209,20 @@ test("chat UI rejects empty and already-pending submissions", async () => {
   assert.equal(pendingHarness.states.at(-1), "idle");
   assert.match(pendingHarness.output.textContent, /ya está pensando/);
   pendingHarness.cleanup();
+
+  const gatedHarness = createHarness({
+    canSubmit: () => false,
+    async sendMessage() {
+      calls += 1;
+      return "unused";
+    },
+  });
+  gatedHarness.input.value = "No enviar durante voz";
+  gatedHarness.submit();
+  await Promise.resolve();
+
+  assert.equal(calls, 0);
+  assert.equal(gatedHarness.states.at(-1), "idle");
+  assert.match(gatedHarness.output.textContent, /grabación o transcripción/);
+  gatedHarness.cleanup();
 });
