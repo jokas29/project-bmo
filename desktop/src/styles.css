@@ -31,6 +31,34 @@ body {
   width: 220px;
   height: 280px;
 
+  position: relative;
+
+  cursor: grab;
+}
+
+.bmo:active {
+  cursor: grabbing;
+}
+
+.character-sprite {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+  opacity: 0;
+
+  pointer-events: none;
+}
+
+.character-css-fallback {
+  width: 100%;
+  height: 100%;
+
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -40,12 +68,14 @@ body {
   border-radius: 38px;
 
   background: rgb(92, 190, 169);
-
-  cursor: grab;
 }
 
-.bmo:active {
-  cursor: grabbing;
+.bmo[data-character-render-mode="sprite"] .character-sprite {
+  opacity: 1;
+}
+
+.bmo[data-character-render-mode="sprite"] .character-css-fallback {
+  visibility: hidden;
 }
 
 .screen {
