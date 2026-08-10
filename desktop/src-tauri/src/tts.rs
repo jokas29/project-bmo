@@ -8,6 +8,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,6 +39,7 @@ pub(crate) struct TtsEngine {
     pipeline_python: PathBuf,
     pipeline_script: PathBuf,
     output_dir: PathBuf,
+    pipeline_lock: Arc<Mutex<()>>,
 }
 
 impl TtsEngine {
@@ -60,6 +62,7 @@ impl TtsEngine {
             pipeline_python,
             pipeline_script,
             output_dir,
+            pipeline_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -79,6 +82,11 @@ impl TtsEngine {
 
         let style =
             TtsStyle::parse(&style).ok_or_else(|| "El estilo TTS no es válido.".to_owned())?;
+
+        let _pipeline_guard = self
+            .pipeline_lock
+            .lock()
+            .map_err(|_| "El bloqueo interno de TTS quedó en un estado inválido.".to_owned())?;
 
         if !self.pipeline_python.is_file() {
             return Err(format!(
