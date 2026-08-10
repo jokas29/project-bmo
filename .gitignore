@@ -15,3 +15,7 @@ voice-data/
 voice-models/
 consent-private/
 *.age
+
+# Python
+__pycache__/
+*.py[cod]

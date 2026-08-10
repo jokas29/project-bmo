@@ -20,6 +20,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             tts::tts_status,
+            tts::tts_synthesize,
             voice::start_voice_recording,
             voice::stop_voice_recording_and_transcribe,
             voice::cancel_voice_recording
