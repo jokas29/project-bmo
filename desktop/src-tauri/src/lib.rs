@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+mod tts;
 mod voice;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -15,8 +16,10 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(voice::VoiceState::default())
+        .manage(tts::TtsEngine::new())
         .invoke_handler(tauri::generate_handler![
             greet,
+            tts::tts_status,
             voice::start_voice_recording,
             voice::stop_voice_recording_and_transcribe,
             voice::cancel_voice_recording
