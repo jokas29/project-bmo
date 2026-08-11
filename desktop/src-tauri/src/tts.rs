@@ -39,6 +39,7 @@ pub(crate) struct TtsEngine {
     pipeline_python: PathBuf,
     pipeline_script: PathBuf,
     output_dir: PathBuf,
+    debug_dir: Option<PathBuf>,
     pipeline_lock: Arc<Mutex<()>>,
 }
 
@@ -58,10 +59,15 @@ impl TtsEngine {
             .map(PathBuf::from)
             .unwrap_or_else(|| project_root.join(".private/tts-runtime"));
 
+        let debug_dir = std::env::var_os("BMO_TTS_DEBUG_DIR")
+            .map(PathBuf::from)
+            .or_else(|| cfg!(debug_assertions).then(|| output_dir.join("debug")));
+
         Self {
             pipeline_python,
             pipeline_script,
             output_dir,
+            debug_dir,
             pipeline_lock: Arc::new(Mutex::new(())),
         }
     }
@@ -105,6 +111,11 @@ impl TtsEngine {
         fs::create_dir_all(&self.output_dir)
             .map_err(|_| "No pude crear la carpeta temporal de TTS.".to_owned())?;
 
+        if let Some(debug_dir) = &self.debug_dir {
+            fs::create_dir_all(debug_dir)
+                .map_err(|_| "No pude crear la carpeta privada de diagnóstico TTS.".to_owned())?;
+        }
+
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "No pude crear un nombre temporal para el audio.".to_owned())?
@@ -114,14 +125,21 @@ impl TtsEngine {
             .output_dir
             .join(format!("bmo-{}-{timestamp}.wav", std::process::id()));
 
-        let result = Command::new(&self.pipeline_python)
+        let mut command = Command::new(&self.pipeline_python);
+        command
             .arg(&self.pipeline_script)
             .arg("--style")
             .arg(style.as_str())
             .arg("--text")
             .arg(text)
             .arg("--output")
-            .arg(&output_path)
+            .arg(&output_path);
+
+        if let Some(debug_dir) = &self.debug_dir {
+            command.arg("--debug-dir").arg(debug_dir);
+        }
+
+        let result = command
             .output()
             .map_err(|_| "No pude iniciar el pipeline TTS local.".to_owned())?;
 
