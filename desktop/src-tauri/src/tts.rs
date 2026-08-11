@@ -7,9 +7,12 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(target_os = "macos")]
+const MACOS_PTY_WRAPPER: &str = "/usr/bin/script";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TtsStyle {
@@ -81,6 +84,33 @@ impl TtsEngine {
             .collect()
     }
 
+    fn pipeline_command(&self) -> Result<Command, String> {
+        #[cfg(target_os = "macos")]
+        {
+            let pty_wrapper = PathBuf::from(MACOS_PTY_WRAPPER);
+
+            if !pty_wrapper.is_file() {
+                return Err("No encuentro el lanzador PTY requerido para TTS en macOS.".to_owned());
+            }
+
+            // F5-TTS on the current macOS/Apple Silicon setup produces
+            // corrupted audio when its process is not attached to a TTY.
+            // macOS `script` gives the Python pipeline a pseudo-terminal
+            // without invoking a shell or interpolating user-provided text.
+            let mut command = Command::new(pty_wrapper);
+            command
+                .arg("-q")
+                .arg("/dev/null")
+                .arg(&self.pipeline_python);
+            Ok(command)
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(Command::new(&self.pipeline_python))
+        }
+    }
+
     fn synthesize(&self, text: String, style: String) -> Result<String, String> {
         let text = text.trim();
 
@@ -127,7 +157,7 @@ impl TtsEngine {
             .output_dir
             .join(format!("bmo-{}-{timestamp}.wav", std::process::id()));
 
-        let mut command = Command::new(&self.pipeline_python);
+        let mut command = self.pipeline_command()?;
         command
             .current_dir(&self.project_root)
             .arg(&self.pipeline_script)
@@ -142,12 +172,7 @@ impl TtsEngine {
             command.arg("--debug-dir").arg(debug_dir);
         }
 
-        // F5-TTS on the current macOS/Apple Silicon setup produces corrupted
-        // audio when the parent captures stdout/stderr with Command::output().
-        // Keeping the streams inherited matches the known-good manual launch.
         let status = command
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
             .status()
             .map_err(|_| "No pude iniciar el pipeline TTS local.".to_owned())?;
 
@@ -208,5 +233,21 @@ mod tests {
         let result = engine.synthesize("   ".to_owned(), "calm".to_owned());
 
         assert_eq!(result, Err("El texto para TTS está vacío.".to_owned()));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_pipeline_uses_a_pty_wrapper() {
+        let engine = TtsEngine::new();
+        let command = engine.pipeline_command().expect("PTY wrapper should exist");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(command.get_program().to_string_lossy(), MACOS_PTY_WRAPPER);
+        assert_eq!(args[0], "-q");
+        assert_eq!(args[1], "/dev/null");
+        assert_eq!(args[2], engine.pipeline_python.to_string_lossy());
     }
 }
