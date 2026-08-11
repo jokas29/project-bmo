@@ -16,13 +16,13 @@ This file records the current public debugging state for the local TTS integrati
 - Debug builds (`tauri dev`) preserve those files below the private TTS runtime directory.
 - Playback is **not** wired into the UI yet. The current callback only generates a WAV and logs its path.
 
-## Validation before the latest fix
+## Validation before the PTY fix
 
 - Frontend: `npm test` -> 59 passed, 0 failed.
 - TypeScript type-check passed with `tsc --noEmit`.
-- Rust reached 24 passed, 0 failed while the temporary environment-isolation diagnostic was present.
+- Rust: 23 passed, 0 failed after removing temporary diagnostics that were proven unrelated.
 
-The latest stdout/stderr fix removes that temporary environment diagnostic test, so the expected Rust count returns to 23. The latest fix still needs one local compile/test pass.
+The PTY fix adds one macOS-specific Rust unit test, so the expected local Rust count is now 24. It still needs a local compile/test pass.
 
 ## Confirmed pipeline behavior
 
@@ -40,38 +40,40 @@ The following hypotheses were tested and rejected:
 - **MPS/GPU specifically:** forcing F5 to CPU still produced noise when launched through BMO.
 - **Inherited Tauri/npm environment:** launching with a reduced environment still produced noise.
 
-The decisive reproduction used a small parent Python process:
+Further process-launch tests narrowed the trigger:
 
-- Launching `tts_pipeline.py` with `stdout=subprocess.PIPE` and `stderr=subprocess.PIPE` produced noise.
-- This remained true with both a minimal environment and the full shell environment.
-- Launching the same pipeline from the same parent process **without capturing stdout/stderr** produced correct speech.
+- Parent-process capture of stdout/stderr produced noise.
+- Full shell environment plus captured stdout/stderr still produced noise.
+- A parent process without capture produced correct speech when run from a real terminal.
+- Direct shell redirection of stdout/stderr to a file also produced noise.
+- Launching the same pipeline through macOS `script -q /dev/null ...` produced correct speech.
 
-This isolates subprocess output capture as the trigger on the current macOS/Apple Silicon F5 setup.
+This shows the decisive requirement on the current macOS/Apple Silicon F5 setup is not merely "do not capture output". The F5 process must see a real TTY or pseudo-terminal.
 
-## Latest fix in the branch
+## PTY fix now in the branch
 
-`desktop/src-tauri/src/tts.rs` no longer uses `Command::output()`, because that captures stdout/stderr.
+On macOS, `desktop/src-tauri/src/tts.rs` now launches the Python pipeline through the system PTY wrapper:
 
-The pipeline now:
+`/usr/bin/script -q /dev/null <python> <pipeline> ...`
 
-- inherits the normal process environment again;
-- runs with the project root as its working directory;
-- explicitly inherits stdout and stderr;
-- waits with `Command::status()` instead of capturing output;
-- reports a generic exit-code error if the pipeline fails.
+Important properties:
 
-The temporary 10-second delay and temporary environment allowlist were removed because neither addressed the bug.
+- `/usr/bin/script` creates a pseudo-terminal for the Python/F5 process.
+- Rust passes every argument directly through `Command`; no shell is invoked and assistant/user text is not interpolated into a shell command.
+- The normal process environment and project working directory are preserved.
+- Non-macOS targets keep the direct Python launch path.
+- A macOS-specific unit test checks that the PTY wrapper and argument prefix are selected.
 
 ## Next local verification
 
 1. Pull `feat/tts-playback-ui`.
-2. Run `cargo fmt --check`, `cargo check`, and `cargo test`.
+2. Run `cargo fmt --check`, `cargo check`, and `cargo test`. Expected Rust count on macOS: 24 passed.
 3. Start BMO with `npm run tauri dev`.
 4. Trigger exactly one short reply such as `Hola.` and wait for TTS to finish.
 5. Listen first to the newest `*-01-f5.wav` under the private debug directory.
 6. If F5 is good, listen to the matching `*-03-final.wav`.
 
-If both are good, treat the white-noise bug as resolved and continue with actual audio playback integration. If F5 is still bad, preserve that run and investigate any remaining difference between Rust `Command::status()` and the known-good parent-process no-capture reproduction.
+If both are good, treat the white-noise bug as resolved and continue with actual audio playback integration. If F5 is still bad, the next diagnostic must verify whether `/usr/bin/script` still provides a PTY when its own parent is the Tauri process.
 
 ## Privacy notes
 
