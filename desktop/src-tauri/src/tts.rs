@@ -9,7 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TtsStyle {
@@ -124,6 +124,11 @@ impl TtsEngine {
         let output_path = self
             .output_dir
             .join(format!("bmo-{}-{timestamp}.wav", std::process::id()));
+
+        // Diagnostic only: give Ollama/Metal a short window to settle before
+        // launching F5 from `tauri dev`. Release builds do not wait here.
+        #[cfg(debug_assertions)]
+        std::thread::sleep(Duration::from_secs(10));
 
         let mut command = Command::new(&self.pipeline_python);
         command
