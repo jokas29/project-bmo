@@ -6,10 +6,21 @@
 //! the Tauri process.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const PIPELINE_ENV_ALLOWLIST: &[&str] = &[
+    "HOME",
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "TMPDIR",
+    "XDG_CACHE_HOME",
+    "HF_HOME",
+    "TORCH_HOME",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TtsStyle {
@@ -34,8 +45,28 @@ impl TtsStyle {
     }
 }
 
+fn configure_pipeline_environment(command: &mut Command, project_root: &Path) {
+    // Do not leak the full Tauri/npm development environment into the local
+    // ML processes. The Python pipeline loads its BMO_* settings from the
+    // private .private/tts.env file after startup.
+    command.env_clear().current_dir(project_root);
+
+    for name in PIPELINE_ENV_ALLOWLIST {
+        if let Some(value) = std::env::var_os(name) {
+            command.env(name, value);
+        }
+    }
+
+    // Keep support for selecting a non-default private env file without
+    // forwarding every BMO_* variable inherited by the desktop process.
+    if let Some(value) = std::env::var_os("BMO_TTS_ENV_FILE") {
+        command.env("BMO_TTS_ENV_FILE", value);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct TtsEngine {
+    project_root: PathBuf,
     pipeline_python: PathBuf,
     pipeline_script: PathBuf,
     output_dir: PathBuf,
@@ -64,6 +95,7 @@ impl TtsEngine {
             .or_else(|| cfg!(debug_assertions).then(|| output_dir.join("debug")));
 
         Self {
+            project_root,
             pipeline_python,
             pipeline_script,
             output_dir,
@@ -125,12 +157,8 @@ impl TtsEngine {
             .output_dir
             .join(format!("bmo-{}-{timestamp}.wav", std::process::id()));
 
-        // Diagnostic only: give Ollama/Metal a short window to settle before
-        // launching F5 from `tauri dev`. Release builds do not wait here.
-        #[cfg(debug_assertions)]
-        std::thread::sleep(Duration::from_secs(10));
-
         let mut command = Command::new(&self.pipeline_python);
+        configure_pipeline_environment(&mut command, &self.project_root);
         command
             .arg(&self.pipeline_script)
             .arg("--style")
@@ -202,5 +230,14 @@ mod tests {
         let result = engine.synthesize("   ".to_owned(), "calm".to_owned());
 
         assert_eq!(result, Err("El texto para TTS está vacío.".to_owned()));
+    }
+
+    #[test]
+    fn pipeline_environment_allowlist_excludes_runtime_specific_variables() {
+        assert!(!PIPELINE_ENV_ALLOWLIST.contains(&"BMO_F5_DEVICE"));
+        assert!(!PIPELINE_ENV_ALLOWLIST.contains(&"PYTHONPATH"));
+        assert!(!PIPELINE_ENV_ALLOWLIST.contains(&"VIRTUAL_ENV"));
+        assert!(PIPELINE_ENV_ALLOWLIST.contains(&"HOME"));
+        assert!(PIPELINE_ENV_ALLOWLIST.contains(&"PATH"));
     }
 }
