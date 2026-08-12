@@ -8,7 +8,11 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(target_os = "macos")]
+const MACOS_PTY_WRAPPER: &str = "/usr/bin/script";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TtsStyle {
@@ -35,9 +39,12 @@ impl TtsStyle {
 
 #[derive(Clone, Debug)]
 pub(crate) struct TtsEngine {
+    project_root: PathBuf,
     pipeline_python: PathBuf,
     pipeline_script: PathBuf,
     output_dir: PathBuf,
+    debug_dir: Option<PathBuf>,
+    pipeline_lock: Arc<Mutex<()>>,
 }
 
 impl TtsEngine {
@@ -56,10 +63,17 @@ impl TtsEngine {
             .map(PathBuf::from)
             .unwrap_or_else(|| project_root.join(".private/tts-runtime"));
 
+        let debug_dir = std::env::var_os("BMO_TTS_DEBUG_DIR")
+            .map(PathBuf::from)
+            .or_else(|| cfg!(debug_assertions).then(|| output_dir.join("debug")));
+
         Self {
+            project_root,
             pipeline_python,
             pipeline_script,
             output_dir,
+            debug_dir,
+            pipeline_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -68,6 +82,33 @@ impl TtsEngine {
             .into_iter()
             .map(|style| style.as_str().to_owned())
             .collect()
+    }
+
+    fn pipeline_command(&self) -> Result<Command, String> {
+        #[cfg(target_os = "macos")]
+        {
+            let pty_wrapper = PathBuf::from(MACOS_PTY_WRAPPER);
+
+            if !pty_wrapper.is_file() {
+                return Err("No encuentro el lanzador PTY requerido para TTS en macOS.".to_owned());
+            }
+
+            // F5-TTS on the current macOS/Apple Silicon setup produces
+            // corrupted audio when its process is not attached to a TTY.
+            // macOS `script` gives the Python pipeline a pseudo-terminal
+            // without invoking a shell or interpolating user-provided text.
+            let mut command = Command::new(pty_wrapper);
+            command
+                .arg("-q")
+                .arg("/dev/null")
+                .arg(&self.pipeline_python);
+            Ok(command)
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(Command::new(&self.pipeline_python))
+        }
     }
 
     fn synthesize(&self, text: String, style: String) -> Result<String, String> {
@@ -79,6 +120,11 @@ impl TtsEngine {
 
         let style =
             TtsStyle::parse(&style).ok_or_else(|| "El estilo TTS no es válido.".to_owned())?;
+
+        let _pipeline_guard = self
+            .pipeline_lock
+            .lock()
+            .map_err(|_| "El bloqueo interno de TTS quedó en un estado inválido.".to_owned())?;
 
         if !self.pipeline_python.is_file() {
             return Err(format!(
@@ -97,6 +143,11 @@ impl TtsEngine {
         fs::create_dir_all(&self.output_dir)
             .map_err(|_| "No pude crear la carpeta temporal de TTS.".to_owned())?;
 
+        if let Some(debug_dir) = &self.debug_dir {
+            fs::create_dir_all(debug_dir)
+                .map_err(|_| "No pude crear la carpeta privada de diagnóstico TTS.".to_owned())?;
+        }
+
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "No pude crear un nombre temporal para el audio.".to_owned())?
@@ -106,20 +157,31 @@ impl TtsEngine {
             .output_dir
             .join(format!("bmo-{}-{timestamp}.wav", std::process::id()));
 
-        let result = Command::new(&self.pipeline_python)
+        let mut command = self.pipeline_command()?;
+        command
+            .current_dir(&self.project_root)
             .arg(&self.pipeline_script)
             .arg("--style")
             .arg(style.as_str())
             .arg("--text")
             .arg(text)
             .arg("--output")
-            .arg(&output_path)
-            .output()
+            .arg(&output_path);
+
+        if let Some(debug_dir) = &self.debug_dir {
+            command.arg("--debug-dir").arg(debug_dir);
+        }
+
+        let status = command
+            .status()
             .map_err(|_| "No pude iniciar el pipeline TTS local.".to_owned())?;
 
-        if !result.status.success() {
-            let stderr = String::from_utf8_lossy(&result.stderr);
-            return Err(format!("El pipeline TTS local falló: {}", stderr.trim()));
+        if !status.success() {
+            let detail = status
+                .code()
+                .map(|code| format!(" (código {code})"))
+                .unwrap_or_default();
+            return Err(format!("El pipeline TTS local falló{detail}."));
         }
 
         if !output_path.is_file() {
@@ -171,5 +233,21 @@ mod tests {
         let result = engine.synthesize("   ".to_owned(), "calm".to_owned());
 
         assert_eq!(result, Err("El texto para TTS está vacío.".to_owned()));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_pipeline_uses_a_pty_wrapper() {
+        let engine = TtsEngine::new();
+        let command = engine.pipeline_command().expect("PTY wrapper should exist");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(command.get_program().to_string_lossy(), MACOS_PTY_WRAPPER);
+        assert_eq!(args[0], "-q");
+        assert_eq!(args[1], "/dev/null");
+        assert_eq!(args[2], engine.pipeline_python.to_string_lossy());
     }
 }

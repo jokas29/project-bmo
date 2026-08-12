@@ -17,6 +17,7 @@ import { buildSystemPromptWithMemories } from "./memory/memory-context";
 import { createMemoryService } from "./memory/memory-service";
 import { createMemoryUi } from "./memory/memory-ui";
 import { createTauriMemoryStore } from "./memory/tauri-memory-store";
+import { createTauriTtsClient } from "./tts/tts-client";
 import { createTauriVoiceClient } from "./voice/voice-client";
 import { createVoiceUi } from "./voice/voice-ui";
 
@@ -230,6 +231,8 @@ async function initializeApp(): Promise<void> {
     confirmationCancelButton: memoryConfirmCancel,
     confirmationDeleteButton: memoryConfirmDelete,
   });
+  const ttsClient = createTauriTtsClient();
+
   const voiceUi = createVoiceUi({
     button: voiceButton,
     input: chatInput,
@@ -248,6 +251,10 @@ async function initializeApp(): Promise<void> {
     conversation,
     characterState,
     canSubmit: () => !voiceUi.isBusy(),
+    onAssistantReply: async (reply) => {
+      const audioPath = await ttsClient.synthesize(reply, "calm");
+      console.info("BMO TTS generated:", audioPath);
+    },
   });
   const disableDevelopmentStateControls = enableDevelopmentStateControls(
     characterState,
