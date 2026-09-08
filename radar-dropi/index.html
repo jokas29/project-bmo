@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radar Dropi Ecuador</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#16181d;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#fff 0,#f6f7fb 260px)}
+.w{max-width:1180px;margin:auto;padding:28px 18px 50px}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.brand{font-size:30px;font-weight:900}.brand span{color:#ff7a18}.sub{color:#667085;margin-top:4px}.badge{padding:8px 12px;border-radius:999px;background:#fff3e8;color:#b54708;font-weight:700;border:1px solid #fed7aa}
+.note{background:#fff7ed;border:1px solid #fed7aa;padding:13px 14px;border-radius:14px;margin:18px 0;color:#7c2d12}
+.g{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 26px}.c{background:#fff;border:1px solid #e4e7ec;border-radius:18px;padding:18px;box-shadow:0 6px 22px #1018280a}.k{color:#667085;font-size:13px}.v{font-size:30px;font-weight:900;margin-top:5px}.bad{color:#b42318}.good{color:#067647}
+h2{margin:26px 0 12px}.tbl{overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:18px;box-shadow:0 6px 22px #1018280a}table{width:100%;border-collapse:collapse;min-width:1080px}th,td{padding:12px;border-bottom:1px solid #eef2f6;font-size:13px;text-align:left}th{background:#fafafa;color:#667085;position:sticky;top:0;z-index:1}.score{font-size:17px;font-weight:900}.hot{font-weight:800}.muted{color:#667085}.empty{padding:28px;text-align:center;color:#667085}.foot{margin-top:14px;color:#98a2b3;font-size:12px}
+@media(max-width:760px){.g{grid-template-columns:1fr 1fr}.w{padding:16px 10px 36px}.brand{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="top"><div><div class="brand">📡 <span>Radar Dropi</span> Ecuador</div><div class="sub">Movimiento de stock + margen + score</div></div><div class="badge" id="state">Conectando…</div></div>
+  <div class="note">La baja de stock es una señal de movimiento, no una venta confirmada. Con menos de 2 horas entre capturas, la confianza se marca como PRELIMINAR.</div>
+  <div class="g">
+    <div class="c"><div class="k">Bajas de stock</div><div class="v bad" id="b">—</div></div>
+    <div class="c"><div class="k">Reposiciones / ajustes</div><div class="v" id="r">—</div></div>
+    <div class="c"><div class="k">Sin cambio</div><div class="v good" id="s">—</div></div>
+    <div class="c"><div class="k">Último snapshot</div><div class="v" style="font-size:16px" id="last">—</div></div>
+  </div>
+  <h2>🔥 Candidatos del Radar</h2>
+  <div class="tbl"><table><thead><tr><th>Score</th><th>Producto</th><th>Stock</th><th>Salida est.</th><th>Velocidad/día</th><th>Costo</th><th>Sugerido</th><th>Margen</th><th>Markup</th><th>Confianza</th></tr></thead><tbody id="tb"><tr><td colspan="10" class="empty">Cargando datos…</td></tr></tbody></table></div>
+  <div class="foot">Radar experimental: el movimiento de inventario puede incluir ventas, ajustes y correcciones de stock.</div>
+</div>
+<script>
+const API='https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/radar-dropi-ec-7f3c?action=report';
+const money=v=>v==null?'—':'$'+Number(v).toFixed(2);
+const n=v=>v==null?'—':Number(v).toLocaleString('es-EC');
+const esc=s=>String(s??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function load(){
+  try{
+    state.textContent='Actualizando…';
+    const res=await fetch(API,{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    b.textContent=n(d.movement_counts?.BAJA_STOCK||0);
+    r.textContent=n(d.movement_counts?.REPOSICION_O_AJUSTE||0);
+    s.textContent=n(d.movement_counts?.SIN_CAMBIO||0);
+    const lr=d.runs?.[0];
+    last.textContent=lr?.finished_at?new Date(lr.finished_at).toLocaleString('es-EC'):'—';
+    const rows=d.top||[];
+    tb.innerHTML=rows.length?rows.map(x=>`<tr><td class="score">${n(x.radar_score)}</td><td><b>${esc(x.name)}</b><br><span class="muted">ID ${x.product_id}</span></td><td>${n(x.prev_stock)} → <b>${n(x.current_stock)}</b></td><td class="hot">${n(x.estimated_outflow_units)}</td><td>${n(x.estimated_units_per_day)}</td><td>${money(x.sale_price)}</td><td>${money(x.suggested_price)}</td><td>${money(x.gross_margin)}</td><td>${n(x.markup_pct)}%</td><td>${esc(x.confidence)}</td></tr>`).join(''):'<tr><td colspan="10" class="empty">Aún no hay bajas de stock comparables.</td></tr>';
+    state.textContent='● En línea';
+  }catch(e){
+    console.error(e);state.textContent='Error de conexión';tb.innerHTML='<tr><td colspan="10" class="empty">No se pudieron cargar los datos del Radar.</td></tr>';
+  }
+}
+load();setInterval(load,15000);
+</script>
+</body>
+</html>
