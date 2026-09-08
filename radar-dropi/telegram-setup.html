@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Conectar Telegram · Radar Dropi</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f6f7fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(180deg,#fff,#f6f7fb)}.card{width:min(520px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:24px;box-shadow:0 18px 50px #11182712}.brand{font-size:26px;font-weight:900;margin-bottom:6px}.brand span{color:#ff7a18}.muted{color:#667085;line-height:1.5}.box{margin:18px 0;padding:13px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:14px}label{display:block;font-weight:800;margin:15px 0 7px}input{width:100%;padding:13px 14px;border:1px solid #d0d5dd;border-radius:12px;font:inherit}button{width:100%;margin-top:14px;padding:13px;border:0;border-radius:12px;background:#ff7a18;color:#fff;font-weight:900;font-size:15px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.status{margin-top:14px;padding:12px;border-radius:12px;display:none}.ok{display:block;background:#ecfdf3;color:#027a48;border:1px solid #abefc6}.err{display:block;background:#fef3f2;color:#b42318;border:1px solid #fecdca}.small{font-size:12px;color:#98a2b3;margin-top:12px;line-height:1.45}</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">🤖 <span>Radar Dropi</span> · Telegram</div>
+  <div class="muted">Conecta el token directamente con tu backend de Supabase. El token no se envía a este chat ni se guarda en esta página.</div>
+  <div class="box">Pega aquí el token que te dio BotFather. Se enviará por HTTPS directamente a tu función de Supabase y se almacenará cifrado en Vault.</div>
+  <label for="token">Token del bot</label>
+  <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:AA...">
+  <button id="btn">Conectar bot</button>
+  <div id="status" class="status"></div>
+  <div class="small">Después de conectarlo, abre <b>@RadarDropEC_bot</b> en Telegram y pulsa <b>Start</b> o envía <b>/start</b>.</div>
+</div>
+<script>
+const API='https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/radar-telegram-7c1e?action=setup';
+const key=new URLSearchParams(location.search).get('k')||'';
+const token=document.getElementById('token'),btn=document.getElementById('btn'),status=document.getElementById('status');
+function show(msg,ok){status.className='status '+(ok?'ok':'err');status.textContent=msg}
+btn.onclick=async()=>{
+  const t=token.value.trim();
+  if(!key)return show('Falta la clave de configuración del enlace.',false);
+  if(t.length<20)return show('El token parece incompleto.',false);
+  btn.disabled=true;btn.textContent='Conectando…';
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({setupKey:key,token:t})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    token.value='';show('✅ Bot conectado correctamente. Ahora abre @'+(d.username||'RadarDropEC_bot')+' en Telegram y envía /start.',true);btn.textContent='Conectado';
+  }catch(e){show('❌ '+(e.message||e),false);btn.disabled=false;btn.textContent='Conectar bot'}
+}
+</script>
+</body>
+</html>
