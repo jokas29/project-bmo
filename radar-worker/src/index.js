@@ -66,6 +66,14 @@ export default {
       headers.set('referer', 'https://app.dropi.ec/login');
     }
 
+    // Dropi's WAF may reject datacenter-origin login requests without an
+    // Authorization header even though /api/login ignores the token itself.
+    // Use a harmless non-empty placeholder for credential login, matching the
+    // behavior of known working Dropi proxy implementations.
+    if (method === 'POST' && path === '/api/login' && !bearer) {
+      headers.set('authorization', 'Bearer dropi-login-bypass');
+    }
+
     if (bearer) {
       headers.set('authorization', `Bearer ${bearer}`);
       headers.set('origin', 'https://app.dropi.ec');
