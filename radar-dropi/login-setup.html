@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Radar Dropi 24/7</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:20px}.card{width:min(430px,94vw);background:#111827;border:1px solid #243047;border-radius:18px;padding:24px;box-shadow:0 18px 60px #0008}.title{font-size:22px;font-weight:800;margin:0 0 10px}.sub{font-size:13px;line-height:1.5;color:#cbd5e1;margin:0 0 16px}.field{width:100%;padding:13px 14px;border-radius:10px;border:1px solid #334155;background:#0b1220;color:#fff;margin-top:10px;font-size:15px}.btn{width:100%;padding:13px 14px;border:0;border-radius:10px;margin-top:14px;background:#22c55e;color:#052e16;font-weight:800;font-size:15px;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.msg{font-size:13px;line-height:1.5;margin-top:14px;color:#cbd5e1}.ok{color:#86efac}.err{color:#fca5a5}.warn{color:#fde68a}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 class="title">☁️ Radar Dropi · Acceso 24/7</h1>
+    <p class="sub">Tus credenciales se envían directamente por HTTPS a Supabase y se guardan cifradas en Vault. No pasan por el chat ni se guardan en GitHub.</p>
+    <input class="field" id="email" type="email" placeholder="Correo de Dropi" autocomplete="username" />
+    <input class="field" id="password" type="password" placeholder="Contraseña de Dropi" autocomplete="current-password" />
+    <button class="btn" id="save">Guardar de forma segura</button>
+    <div class="msg" id="status"></div>
+  </div>
+  <script>
+    const BACK='https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/radar-dropi-ec-7f3c';
+    const qs=new URLSearchParams(location.search);
+    const pairing=qs.get('pairing')||'';
+    const email=document.getElementById('email');
+    const password=document.getElementById('password');
+    const save=document.getElementById('save');
+    const status=document.getElementById('status');
+    if(!pairing){status.className='msg err';status.textContent='❌ Enlace inválido o incompleto.';save.disabled=true;}
+    save.onclick=async()=>{
+      if(!email.value.trim()||!password.value){status.className='msg warn';status.textContent='Completa correo y contraseña.';return;}
+      save.disabled=true;status.className='msg';status.textContent='Guardando…';
+      try{
+        const r=await fetch(BACK+'?action=setlogin',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pairing,email:email.value.trim(),password:password.value})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(d.error||'No se pudo guardar');
+        email.value='';password.value='';status.className='msg ok';status.textContent='✅ Guardado. Puedes cerrar esta pestaña.';
+      }catch(e){save.disabled=false;status.className='msg err';status.textContent='❌ '+(e?.message||String(e));}
+    };
+  </script>
+</body>
+</html>
