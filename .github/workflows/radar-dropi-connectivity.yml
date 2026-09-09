@@ -1,0 +1,36 @@
+name: Radar Dropi connectivity test
+
+on:
+  push:
+    branches:
+      - radar-dropi-connectivity-test
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Dropi endpoints
+        shell: bash
+        run: |
+          set -eu
+          echo "Testing /api/login without credentials (expect validation error if reachable, 403 if blocked)..."
+          LOGIN_CODE=$(curl -sS -o /tmp/login.txt -w "%{http_code}" \
+            -X POST 'https://api.dropi.ec/api/login' \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -H 'Origin: https://app.dropi.ec' \
+            -H 'Referer: https://app.dropi.ec/login' \
+            --data '{"email":"probe@example.invalid","password":"probe","white_brand_id":1}' || true)
+          echo "LOGIN_HTTP=$LOGIN_CODE"
+          head -c 500 /tmp/login.txt || true
+          echo
+
+          echo "Testing catalog without token (expect 401 if network path is allowed, 403 if IP/WAF blocked)..."
+          CAT_CODE=$(curl -sS -o /tmp/catalog.txt -w "%{http_code}" \
+            -X POST 'https://api.dropi.ec/api/products/v4/index' \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data '{"pageSize":1,"startData":0,"country":"ECUADOR","no_count":true,"search_type":"simple"}' || true)
+          echo "CATALOG_HTTP=$CAT_CODE"
+          head -c 500 /tmp/catalog.txt || true
+          echo
