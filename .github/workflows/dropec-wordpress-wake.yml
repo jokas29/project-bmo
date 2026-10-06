@@ -49,13 +49,10 @@ jobs:
               --dump-dom "$url" >"$out" 2>/tmp/dropec-chrome.log || true
           }
 
-          # Warm the ByetHost anti-bot challenge using one persistent browser profile.
           browse "$HOME_URL" /tmp/dropec-home-1.html
           sleep 3
           browse "$HOME_URL" /tmp/dropec-home-2.html
           sleep 3
-
-          # Run the DropEC automation endpoint directly; no WP-Cron dependency.
           browse "$WAKE_URL" /tmp/dropec-wake.html
 
           echo "Home bytes: $(wc -c </tmp/dropec-home-2.html 2>/dev/null || echo 0)"
@@ -79,3 +76,4 @@ jobs:
 
           head -c 1000 /tmp/dropec-wake.html | tr '\n' ' ' || true
           echo
+          echo "bulk receiver v3 verification"
