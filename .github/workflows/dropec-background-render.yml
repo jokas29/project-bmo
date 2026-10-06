@@ -6,8 +6,9 @@ on:
     paths:
       - '.github/workflows/dropec-background-render.yml'
       - 'scripts/dropec_background_render.py'
+  # Staggered away from minute 0 and the primary tracking workflow.
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '2-57/5 * * * *'
   workflow_dispatch:
 
 permissions:
