@@ -60,3 +60,4 @@ jobs:
 
           echo "Home bytes: $(wc -c </tmp/dropec-home-2.html 2>/dev/null || echo 0)"
           echo "Cron request completed"
+          echo "Forced verification run: autonomous catalog executor enabled"
