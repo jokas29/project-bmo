@@ -1,0 +1,119 @@
+name: DropEC Shipping Quote
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dropec-shipping-quote.yml'
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dropec-shipping-quote
+  cancel-in-progress: true
+
+jobs:
+  quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Process one pending DropEC shipping quote
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          [ -n "$BROWSER" ] || { echo "No browser"; exit 1; }
+
+          PROFILE="$(mktemp -d)"
+          HOME_URL="https://radarcommerce.byethost7.com/"
+          BRIDGE="https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-shipping-bridge"
+
+          browse() {
+            timeout 90 "$BROWSER" --headless=new --no-sandbox --disable-gpu \
+              --disable-dev-shm-usage --user-data-dir="$PROFILE" \
+              --virtual-time-budget=45000 --dump-dom "$1" >"$2" 2>/tmp/chrome.log || true
+          }
+
+          browse "$HOME_URL" /tmp/home1.html
+          sleep 2
+          browse "$HOME_URL" /tmp/home2.html
+
+          OIDC_TOKEN="$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-shipping" \
+            | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$OIDC_TOKEN"
+
+          HAS_JOB="$(curl -fsSL -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$BRIDGE/has-job")"
+          if [ "$(printf '%s' "$HAS_JOB" | python3 -c 'import sys,json; print(str(bool(json.load(sys.stdin).get("has_job"))).lower())')" != "true" ]; then
+            echo "SHIPPING_JOB=none"
+            exit 0
+          fi
+
+          curl -fsSL -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$BRIDGE/pull" > /tmp/job.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open('/tmp/job.json'))['job']
+          for key,name in [('id','id'),('url','url'),('raw','raw'),('signature','sig')]:
+              open('/tmp/'+name,'w').write(j[key])
+          PY
+          echo "::add-mask::$(cat /tmp/sig)"
+
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --user-data-dir="$PROFILE" --remote-debugging-port=9222 --remote-allow-origins='*' \
+            "$HOME_URL" >/tmp/cdp.out 2>/tmp/cdp.err &
+          CHROME_PID=$!
+          trap 'kill $CHROME_PID 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:9222/json/list >/tmp/pages.json 2>/dev/null && break
+            sleep 1
+          done
+
+          python3 -m pip install -q websocket-client
+          python3 - <<'PY'
+          import json, urllib.request, websocket
+          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list'))
+          page=next((p for p in pages if p.get('type')=='page'), pages[0])
+          ws=websocket.create_connection(page['webSocketDebuggerUrl'], timeout=120)
+          url=open('/tmp/url').read(); raw=open('/tmp/raw').read(); sig=open('/tmp/sig').read()
+          expr=f'''(async()=>{{
+            const c=new AbortController(); const t=setTimeout(()=>c.abort(),100000);
+            try {{ const r=await fetch({json.dumps(url)},{{method:'POST',headers:{{'Content-Type':'application/json','x-dropec-signature':{json.dumps(sig)}}},body:{json.dumps(raw)},credentials:'include',signal:c.signal}}); return {{status:r.status,text:await r.text()}}; }}
+            finally {{ clearTimeout(t); }}
+          }})()'''
+          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
+          while True:
+              m=json.loads(ws.recv())
+              if m.get('id')==1:
+                  break
+          ws.close()
+          value=m.get('result',{}).get('result',{}).get('value')
+          if not isinstance(value,dict): raise SystemExit('Invalid CDP result')
+          json.dump(value,open('/tmp/http.json','w'))
+          PY
+
+          kill "$CHROME_PID" 2>/dev/null || true
+          trap - EXIT
+
+          python3 - <<'PY'
+          import json
+          h=json.load(open('/tmp/http.json'))
+          try: body=json.loads(h.get('text',''))
+          except: body={}
+          if 200 <= int(h.get('status',0)) < 300 and body.get('ok'):
+              out={'id':open('/tmp/id').read(),'ok':True,'shipping_amount':body.get('shipping_amount'),'carrier':body.get('carrier'),'origin_code':body.get('origin_code'),'destination_code':body.get('destination_code'),'options':body.get('options') or []}
+          else:
+              out={'id':open('/tmp/id').read(),'ok':False,'error':str(body.get('error') or ('http_'+str(h.get('status'))))[:400]}
+          json.dump(out,open('/tmp/complete.json','w'))
+          PY
+
+          curl -fsSL -X POST -H "Authorization: Bearer $OIDC_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/complete.json "$BRIDGE/complete" > /tmp/result.json
+          cat /tmp/result.json
