@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Wake WordPress and run cron through a real browser
+      - name: Wake DropEC automation through a real browser
         shell: bash
         run: |
           set -euo pipefail
@@ -34,34 +34,48 @@ jobs:
 
           PROFILE="$(mktemp -d)"
           HOME_URL="https://radarcommerce.byethost7.com/"
-          CRON_URL="https://radarcommerce.byethost7.com/wp-cron.php?doing_wp_cron=$(date +%s)"
+          WAKE_URL="https://radarcommerce.byethost7.com/wp-json/dropec/v1/wake"
 
           browse() {
             local url="$1"
             local out="$2"
-            timeout 90 "$BROWSER" \
+            timeout 120 "$BROWSER" \
               --headless=new \
               --no-sandbox \
               --disable-gpu \
               --disable-dev-shm-usage \
               --user-data-dir="$PROFILE" \
-              --virtual-time-budget=15000 \
+              --virtual-time-budget=60000 \
               --dump-dom "$url" >"$out" 2>/tmp/dropec-chrome.log || true
           }
 
+          # Warm the ByetHost anti-bot challenge using one persistent browser profile.
           browse "$HOME_URL" /tmp/dropec-home-1.html
           sleep 3
           browse "$HOME_URL" /tmp/dropec-home-2.html
           sleep 3
-          browse "$CRON_URL" /tmp/dropec-cron.html
+
+          # Run the DropEC automation endpoint directly; no WP-Cron dependency.
+          browse "$WAKE_URL" /tmp/dropec-wake.html
 
           echo "Home bytes: $(wc -c </tmp/dropec-home-2.html 2>/dev/null || echo 0)"
-          echo "Cron bytes: $(wc -c </tmp/dropec-cron.html 2>/dev/null || echo 0)"
-          if grep -Eqi 'aes\.js|requires Javascript|__test' /tmp/dropec-cron.html; then
-            echo "CRON_CHALLENGE=yes"
+          echo "Wake bytes: $(wc -c </tmp/dropec-wake.html 2>/dev/null || echo 0)"
+
+          if grep -Eqi 'aes\.js|requires Javascript|__test' /tmp/dropec-wake.html; then
+            echo "WAKE_CHALLENGE=yes"
+            exit 1
           else
-            echo "CRON_CHALLENGE=no"
+            echo "WAKE_CHALLENGE=no"
           fi
-          head -c 500 /tmp/dropec-cron.html | tr '\n' ' ' || true
+
+          if grep -q '"ok":true' /tmp/dropec-wake.html; then
+            echo "WAKE_OK=yes"
+          else
+            echo "WAKE_OK=no"
+            head -c 1000 /tmp/dropec-wake.html | tr '\n' ' ' || true
+            echo
+            exit 1
+          fi
+
+          head -c 1000 /tmp/dropec-wake.html | tr '\n' ' ' || true
           echo
-          echo "Order bridge due-event verification"
