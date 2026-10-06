@@ -1,4 +1,4 @@
-# Verification trigger: MU-plugin uploaded to WordPress
+# Verification trigger 2: tracking bridge pull fixed
 name: DropEC Order Tracking
 
 on:
