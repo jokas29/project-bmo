@@ -1,3 +1,4 @@
+# Verification trigger: MU-plugin uploaded to WordPress
 name: DropEC Order Tracking
 
 on:
