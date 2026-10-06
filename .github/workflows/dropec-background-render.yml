@@ -31,6 +31,19 @@ jobs:
           TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$JSON")"
           echo "DROPEC_OIDC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
+      - name: Refresh DropEC tracking heartbeat
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-order-tracking")"
+          TRACKING_TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$JSON")"
+          BODY="$(curl -fsSL -X POST \
+            -H "Authorization: Bearer ${TRACKING_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-tracking-bridge/has-job)"
+          echo "DropEC tracking heartbeat: $BODY"
+
       - name: Check whether DropEC has a render job
         id: preflight
         shell: bash
