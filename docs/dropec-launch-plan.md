@@ -88,13 +88,13 @@ These products must not be used in launch marketing until separately reviewed:
 - Woo #129 iPhone car charger — brand/compatibility/quality validation required.
 - Woo #132 Bluetooth Stark ENC — electronics return/quality validation required.
 
-The current `dropec_private.launch_product_policy` table records these tiers as an advisory launch policy. It does not replace the global master sales gate.
+The current `dropec_private.launch_product_policy` table records these tiers. Products marked `recommended_for_sale=false` are forced to `approved=false` by the central catalog safety guard so they are excluded from the conversational bot and automated product-content pool.
 
 ## 5. Catalog hygiene rule
 
 Supplier text is not customer copy.
 
-Current catalog audit found published descriptions containing supplier phone numbers, WhatsApp/Telegram links, wholesale instructions, Google Drive links, or medical-style claims. Marketing assets and bot answers must use clean DropEC copy rather than blindly reproducing supplier descriptions.
+The public catalog layer is sanitized on sync. Supplier phone numbers, WhatsApp/Telegram/Drive-style links, wholesale instructions and similar contact leakage must not reach customer-facing copy. The raw supplier source remains separate for internal reference.
 
 Before promoting any additional product:
 
@@ -279,3 +279,30 @@ Do not start traffic until every item below is true:
 - DM bot wording reflects the actual payment/fulfillment state.
 
 Then launch Hero #29 and #124 first.
+
+## 13. Commercial marketing runtime gate
+
+Commercial publishing is a separate gate from commerce activation.
+
+Runtime state lives in `dropec_private.marketing_runtime_config`.
+
+Commercial content can only be enabled when both are true:
+
+1. `dropec_private.commerce_ready()` is true;
+2. `e2e_test_passed = true`.
+
+The controlled sequence is therefore:
+
+`PayPhone ready + Dropi ready → activate commerce → run one real E2E order → verify the entire lifecycle → mark E2E passed → enable commercial marketing`.
+
+While pre-launch is blocked:
+
+- `bot_content_config.enabled = false`;
+- `dropec_daily_value_evening` is inactive;
+- `dropec_product_prepare_first` is inactive;
+- `dropec_product_prepare_second` is inactive;
+- `dropec_product_publish_noon_batch` is inactive.
+
+An attempt to enable commercial marketing before commerce readiness or before the E2E flag is rejected at the database layer.
+
+If the master sales switch later transitions from ON to OFF, a database trigger automatically disables commercial content and these marketing cron jobs. This prevents acquisition from continuing after a payment or fulfillment shutdown.
