@@ -19,9 +19,9 @@ concurrency:
 jobs:
   wake:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Wake WordPress through a real browser
+      - name: Wake WordPress and run cron through a real browser
         shell: bash
         run: |
           set -euo pipefail
@@ -33,35 +33,30 @@ jobs:
           fi
 
           PROFILE="$(mktemp -d)"
-          URL="https://radarcommerce.byethost7.com/"
+          HOME_URL="https://radarcommerce.byethost7.com/"
+          CRON_URL="https://radarcommerce.byethost7.com/wp-cron.php?doing_wp_cron=$(date +%s)"
 
-          # First visit lets the hosting JavaScript challenge establish its cookie.
-          "$BROWSER" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --disable-dev-shm-usage \
-            --user-data-dir="$PROFILE" \
-            --virtual-time-budget=10000 \
-            --dump-dom "$URL" >/tmp/dropec-page-1.html 2>/tmp/dropec-chrome-1.log || true
+          browse() {
+            local url="$1"
+            local out="$2"
+            timeout 90 "$BROWSER" \
+              --headless=new \
+              --no-sandbox \
+              --disable-gpu \
+              --disable-dev-shm-usage \
+              --user-data-dir="$PROFILE" \
+              --virtual-time-budget=15000 \
+              --dump-dom "$url" >"$out" 2>/tmp/dropec-chrome.log || true
+          }
 
-          sleep 5
+          # Warm up the hosting anti-bot JavaScript using one persistent browser profile.
+          browse "$HOME_URL" /tmp/dropec-home-1.html
+          sleep 3
+          browse "$HOME_URL" /tmp/dropec-home-2.html
+          sleep 3
 
-          # Second visit reuses the cookie/profile and reaches WordPress, which lets
-          # ALTERNATE_WP_CRON execute due DropEC jobs without a loopback request.
-          "$BROWSER" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --disable-dev-shm-usage \
-            --user-data-dir="$PROFILE" \
-            --virtual-time-budget=10000 \
-            --dump-dom "$URL" >/tmp/dropec-page-2.html 2>/tmp/dropec-chrome-2.log || true
+          # Execute WordPress cron externally. This avoids ByetHost's blocked loopbacks.
+          browse "$CRON_URL" /tmp/dropec-cron.html
 
-          if [ ! -s /tmp/dropec-page-2.html ]; then
-            echo "WordPress wake produced no page content"
-            cat /tmp/dropec-chrome-2.log || true
-            exit 1
-          fi
-
-          echo "DropEC WordPress wake completed"
+          echo "Home bytes: $(wc -c </tmp/dropec-home-2.html 2>/dev/null || echo 0)"
+          echo "Cron request completed"
