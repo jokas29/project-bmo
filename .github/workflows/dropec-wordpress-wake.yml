@@ -49,15 +49,18 @@ jobs:
               --dump-dom "$url" >"$out" 2>/tmp/dropec-chrome.log || true
           }
 
-          # Warm up the hosting anti-bot JavaScript using one persistent browser profile.
           browse "$HOME_URL" /tmp/dropec-home-1.html
           sleep 3
           browse "$HOME_URL" /tmp/dropec-home-2.html
           sleep 3
-
-          # Execute WordPress cron externally. This avoids ByetHost's blocked loopbacks.
           browse "$CRON_URL" /tmp/dropec-cron.html
 
           echo "Home bytes: $(wc -c </tmp/dropec-home-2.html 2>/dev/null || echo 0)"
-          echo "Cron request completed"
-          echo "Forced verification run: autonomous catalog executor enabled"
+          echo "Cron bytes: $(wc -c </tmp/dropec-cron.html 2>/dev/null || echo 0)"
+          if grep -Eqi 'aes\.js|requires Javascript|__test' /tmp/dropec-cron.html; then
+            echo "CRON_CHALLENGE=yes"
+          else
+            echo "CRON_CHALLENGE=no"
+          fi
+          head -c 500 /tmp/dropec-cron.html | tr '\n' ' ' || true
+          echo
