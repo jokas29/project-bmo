@@ -76,4 +76,4 @@ jobs:
 
           head -c 1000 /tmp/dropec-wake.html | tr '\n' ' ' || true
           echo
-          echo "bulk receiver v3 verification"
+          echo "order queue immediate verification"
