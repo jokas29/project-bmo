@@ -20,7 +20,7 @@ concurrency:
 jobs:
   wake:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 7
     steps:
       - name: Wake WordPress and process one DropEC shipping quote
         shell: bash
@@ -131,26 +131,33 @@ jobs:
           python3 -m pip install -q websocket-client
 
           python3 - <<'PY'
-          import json, os, time, urllib.request
+          import json, time, urllib.request
           import websocket
 
           pages=json.load(urllib.request.urlopen('http://127.0.0.1:9222/json/list'))
           page=next((p for p in pages if p.get('type')=='page'), pages[0])
-          ws=websocket.create_connection(page['webSocketDebuggerUrl'], timeout=30)
+          ws=websocket.create_connection(page['webSocketDebuggerUrl'], timeout=120)
           url=open('/tmp/job-url').read()
           raw=open('/tmp/job-raw').read()
           sig=open('/tmp/job-signature').read()
           expr=f'''(async()=>{{
-            const r=await fetch({json.dumps(url)},{{
-              method:'POST',
-              headers:{{'Content-Type':'application/json','x-dropec-signature':{json.dumps(sig)}}},
-              body:{json.dumps(raw)},
-              credentials:'include'
-            }});
-            return {{status:r.status,text:await r.text()}};
+            const controller=new AbortController();
+            const timer=setTimeout(()=>controller.abort(),100000);
+            try {{
+              const r=await fetch({json.dumps(url)},{{
+                method:'POST',
+                headers:{{'Content-Type':'application/json','x-dropec-signature':{json.dumps(sig)}}},
+                body:{json.dumps(raw)},
+                credentials:'include',
+                signal:controller.signal
+              }});
+              return {{status:r.status,text:await r.text()}};
+            }} finally {{
+              clearTimeout(timer);
+            }}
           }})()'''
           ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
-          deadline=time.time()+40
+          deadline=time.time()+115
           result=None
           while time.time()<deadline:
             msg=json.loads(ws.recv())
