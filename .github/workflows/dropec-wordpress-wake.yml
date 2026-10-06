@@ -1,0 +1,67 @@
+name: DropEC WordPress Wake
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dropec-wordpress-wake.yml'
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dropec-wordpress-wake
+  cancel-in-progress: true
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake WordPress through a real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$BROWSER" ]; then
+            echo "No Chromium/Chrome browser found on runner"
+            exit 1
+          fi
+
+          PROFILE="$(mktemp -d)"
+          URL="https://radarcommerce.byethost7.com/"
+
+          # First visit lets the hosting JavaScript challenge establish its cookie.
+          "$BROWSER" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-dev-shm-usage \
+            --user-data-dir="$PROFILE" \
+            --virtual-time-budget=10000 \
+            --dump-dom "$URL" >/tmp/dropec-page-1.html 2>/tmp/dropec-chrome-1.log || true
+
+          sleep 5
+
+          # Second visit reuses the cookie/profile and reaches WordPress, which lets
+          # ALTERNATE_WP_CRON execute due DropEC jobs without a loopback request.
+          "$BROWSER" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-dev-shm-usage \
+            --user-data-dir="$PROFILE" \
+            --virtual-time-budget=10000 \
+            --dump-dom "$URL" >/tmp/dropec-page-2.html 2>/tmp/dropec-chrome-2.log || true
+
+          if [ ! -s /tmp/dropec-page-2.html ]; then
+            echo "WordPress wake produced no page content"
+            cat /tmp/dropec-chrome-2.log || true
+            exit 1
+          fi
+
+          echo "DropEC WordPress wake completed"
