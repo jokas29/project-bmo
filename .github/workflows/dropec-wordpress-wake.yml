@@ -76,4 +76,4 @@ jobs:
 
           head -c 1000 /tmp/dropec-wake.html | tr '\n' ' ' || true
           echo
-          echo "order retry immediate verification"
+          echo "HPOS order #63 verification"
