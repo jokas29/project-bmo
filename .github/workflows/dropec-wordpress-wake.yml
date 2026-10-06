@@ -64,4 +64,4 @@ jobs:
           fi
           head -c 500 /tmp/dropec-cron.html | tr '\n' ' ' || true
           echo
-          echo "Order bridge verification trigger"
+          echo "Order bridge due-event verification"
