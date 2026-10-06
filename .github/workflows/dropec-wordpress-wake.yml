@@ -64,4 +64,4 @@ jobs:
           fi
           head -c 500 /tmp/dropec-cron.html | tr '\n' ' ' || true
           echo
-          echo "Verification run after initial cron scheduling"
+          echo "Bulk receiver v2 verification"
