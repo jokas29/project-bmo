@@ -71,3 +71,11 @@ jobs:
       - name: Process one DropEC render job
         if: steps.preflight.outputs.has_job == 'true'
         run: python scripts/dropec_background_render.py
+
+      - name: Check DropEC content pipeline
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          BODY="$(curl -sS --max-time 20 https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-content-worker/health)"
+          echo "DropEC content health: $BODY"
