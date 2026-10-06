@@ -1,4 +1,4 @@
-# Verification trigger 2: tracking bridge pull fixed
+# Heartbeat validation: tracking bridge v3
 name: DropEC Order Tracking
 
 on:
