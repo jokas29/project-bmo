@@ -1,0 +1,55 @@
+name: DropEC Background Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dropec-background-render.yml'
+      - 'scripts/dropec_background_render.py'
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dropec-background-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Cache rembg models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.u2net
+            ~/.rembg
+          key: rembg-birefnet-general-lite-v1
+
+      - name: Install renderer
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'rembg[cpu]>=2.0.67,<3' pillow requests
+
+      - name: Get short-lived GitHub OIDC token
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-render")"
+          TOKEN="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$JSON")"
+          echo "DROPEC_OIDC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Process one DropEC render job
+        run: python scripts/dropec_background_render.py
