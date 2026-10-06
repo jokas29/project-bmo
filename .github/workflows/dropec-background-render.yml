@@ -72,6 +72,18 @@ jobs:
         if: steps.preflight.outputs.has_job == 'true'
         run: python scripts/dropec_background_render.py
 
+      - name: Compose maximalist DropEC poster
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$(curl -fsSL -X POST \
+            -H "Authorization: Bearer ${DROPEC_OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-poster-composer)"
+          echo "DropEC poster composer: $BODY"
+
       - name: Check DropEC content pipeline
         if: always()
         shell: bash
