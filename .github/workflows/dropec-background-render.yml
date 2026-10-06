@@ -72,6 +72,18 @@ jobs:
         if: steps.preflight.outputs.has_job == 'true'
         run: python scripts/dropec_background_render.py
 
+      - name: Finalize completed background removal
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY="$(curl -fsSL -X POST \
+            -H "Authorization: Bearer ${DROPEC_OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-render-finalizer)"
+          echo "DropEC render finalizer: $BODY"
+
       - name: Compose maximalist DropEC poster
         if: always()
         shell: bash
@@ -84,10 +96,10 @@ jobs:
             https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-poster-composer)"
           echo "DropEC poster composer: $BODY"
 
-      - name: Check DropEC content pipeline
+      - name: Check DropEC production pipeline
         if: always()
         shell: bash
         run: |
           set +e
-          BODY="$(curl -sS --max-time 20 https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-content-worker/health)"
-          echo "DropEC content health: $BODY"
+          BODY="$(curl -sS --max-time 20 https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-content-orchestrator/health)"
+          echo "DropEC production health: $BODY"
