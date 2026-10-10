@@ -1,119 +1,17 @@
 name: DropEC Background Render
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/dropec-background-render.yml'
-      - 'scripts/dropec_background_render.py'
-  # Staggered away from minute 0 and the primary tracking workflow.
-  schedule:
-    - cron: '2-57/5 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
-
-concurrency:
-  group: dropec-background-render
-  cancel-in-progress: false
 
 jobs:
-  render:
+  paused:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - name: Get short-lived GitHub OIDC token
-        shell: bash
+      - name: Paused while Supabase service is restricted
         run: |
-          set -euo pipefail
-          JSON="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-render")"
-          TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$JSON")"
-          echo "DROPEC_OIDC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-
-      - name: Refresh DropEC tracking heartbeat
-        shell: bash
-        run: |
-          set -euo pipefail
-          JSON="$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-order-tracking")"
-          TRACKING_TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "$JSON")"
-          BODY="$(curl -fsSL -X POST \
-            -H "Authorization: Bearer ${TRACKING_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-tracking-bridge/has-job)"
-          echo "DropEC tracking heartbeat: $BODY"
-
-      - name: Check whether DropEC has a render job
-        id: preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-          BODY="$(curl -fsSL -X POST \
-            -H "Authorization: Bearer ${DROPEC_OIDC_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-render-bridge/has-job)"
-          HAS_JOB="$(python3 -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("has_job"))).lower())' <<< "$BODY")"
-          echo "has_job=$HAS_JOB" >> "$GITHUB_OUTPUT"
-          echo "DropEC render pending: $HAS_JOB"
-
-      - uses: actions/checkout@v4
-        if: steps.preflight.outputs.has_job == 'true'
-
-      - uses: actions/setup-python@v5
-        if: steps.preflight.outputs.has_job == 'true'
-        with:
-          python-version: '3.11'
-
-      - name: Cache BiRefNet model
-        if: steps.preflight.outputs.has_job == 'true'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.u2net
-            ~/.rembg
-          key: rembg-birefnet-general-v1
-
-      - name: Install renderer
-        if: steps.preflight.outputs.has_job == 'true'
-        run: |
-          python -m pip install --upgrade pip
-          pip install 'rembg[cpu]>=2.0.67,<3' pillow requests
-
-      - name: Process one DropEC render job
-        if: steps.preflight.outputs.has_job == 'true'
-        run: python scripts/dropec_background_render.py
-
-      - name: Finalize completed background removal
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          BODY="$(curl -fsSL -X POST \
-            -H "Authorization: Bearer ${DROPEC_OIDC_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-render-finalizer)"
-          echo "DropEC render finalizer: $BODY"
-
-      - name: Compose maximalist DropEC poster
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          BODY="$(curl -fsSL -X POST \
-            -H "Authorization: Bearer ${DROPEC_OIDC_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-poster-composer)"
-          echo "DropEC poster composer: $BODY"
-
-      - name: Check DropEC production pipeline
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          BODY="$(curl -sS --max-time 20 https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-content-orchestrator/health)"
-          echo "DropEC production health: $BODY"
+          echo "DropEC Background Render scheduled polling is temporarily paused."
+          echo "Reason: Supabase Edge Functions are returning HTTP 402 before function execution."
+          echo "No rendering, tracking heartbeat, finalizer or poster action is executed."
