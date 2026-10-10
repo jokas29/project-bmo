@@ -1,174 +1,17 @@
-# Heartbeat validation: tracking bridge v3
 name: DropEC Order Tracking
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/dropec-order-tracking.yml'
-      - 'wordpress/mu-plugins/dropec-order-lifecycle.php'
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
-
-concurrency:
-  group: dropec-order-tracking
-  cancel-in-progress: true
 
 jobs:
-  track:
+  paused:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: Poll one active DropEC order
-        shell: bash
+      - name: Paused while Supabase service is restricted
         run: |
-          set -euo pipefail
-
-          BRIDGE="https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-tracking-bridge"
-          HOME_URL="https://radarcommerce.byethost7.com/"
-          WAKE_URL="https://radarcommerce.byethost7.com/wp-json/dropec/v1/wake"
-
-          OIDC_TOKEN="$(curl -fsSL \
-            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-order-tracking" \
-            | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"])')"
-          echo "::add-mask::$OIDC_TOKEN"
-
-          HAS_JOB="$(curl -fsSL -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            "$BRIDGE/has-job")"
-
-          if [ "$(printf '%s' "$HAS_JOB" | python3 -c 'import sys,json; print(str(bool(json.load(sys.stdin).get("has_job"))).lower())')" != "true" ]; then
-            echo "TRACKING_JOB=none"
-            exit 0
-          fi
-
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            "$BRIDGE/pull" > /tmp/dropec-tracking-job.json
-
-          python3 - <<'PY'
-          import json
-          j=json.load(open('/tmp/dropec-tracking-job.json')).get('job')
-          if not j:
-              raise SystemExit('No tracking job returned')
-          open('/tmp/job-id','w').write(str(j['id']))
-          open('/tmp/job-url','w').write(j['url'])
-          open('/tmp/job-raw','w').write(j['raw'])
-          open('/tmp/job-signature','w').write(j['signature'])
-          PY
-
-          echo "::add-mask::$(cat /tmp/job-signature)"
-
-          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$BROWSER" ]; then
-            echo "No Chromium/Chrome browser found"
-            exit 1
-          fi
-
-          PROFILE="$(mktemp -d)"
-          browse() {
-            local url="$1"
-            local out="$2"
-            timeout 90 "$BROWSER" \
-              --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
-              --user-data-dir="$PROFILE" --virtual-time-budget=45000 \
-              --dump-dom "$url" >"$out" 2>/tmp/dropec-track-chrome.log || true
-          }
-
-          browse "$HOME_URL" /tmp/home-1.html
-          sleep 2
-          browse "$HOME_URL" /tmp/home-2.html
-          sleep 2
-          browse "$WAKE_URL" /tmp/wake.html
-
-          if grep -Eqi 'aes\.js|requires Javascript|__test' /tmp/wake.html; then
-            echo "WORDPRESS_CHALLENGE=yes"
-          fi
-
-          "$BROWSER" \
-            --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --user-data-dir="$PROFILE" \
-            --remote-debugging-port=9223 --remote-allow-origins='*' \
-            "$HOME_URL" >/tmp/dropec-track-cdp.out 2>/tmp/dropec-track-cdp.err &
-          CHROME_PID=$!
-          trap 'kill $CHROME_PID 2>/dev/null || true' EXIT
-
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:9223/json/list >/tmp/track-pages.json 2>/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-
-          python3 -m pip install -q websocket-client
-
-          python3 - <<'PY'
-          import json,time,urllib.request
-          import websocket
-          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9223/json/list'))
-          page=next((p for p in pages if p.get('type')=='page'),pages[0])
-          ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=90)
-          url=open('/tmp/job-url').read(); raw=open('/tmp/job-raw').read(); sig=open('/tmp/job-signature').read()
-          expr=f'''(async()=>{{
-            const c=new AbortController(); const timer=setTimeout(()=>c.abort(),80000);
-            try {{
-              const r=await fetch({json.dumps(url)},{{method:'POST',headers:{{'Content-Type':'application/json','x-dropec-signature':{json.dumps(sig)}}},body:{json.dumps(raw)},credentials:'include',signal:c.signal}});
-              return {{status:r.status,text:await r.text()}};
-            }} finally {{ clearTimeout(timer); }}
-          }})()'''
-          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
-          deadline=time.time()+90; result=None
-          while time.time()<deadline:
-              msg=json.loads(ws.recv())
-              if msg.get('id')==1:
-                  result=msg; break
-          ws.close()
-          if not result: raise SystemExit('CDP timeout')
-          value=result.get('result',{}).get('result',{}).get('value')
-          if not isinstance(value,dict): raise SystemExit('Invalid CDP result')
-          json.dump(value,open('/tmp/tracking-http.json','w'))
-          PY
-
-          kill "$CHROME_PID" 2>/dev/null || true
-          trap - EXIT
-
-          python3 - <<'PY'
-          import json
-          h=json.load(open('/tmp/tracking-http.json'))
-          code=int(h.get('status',0) or 0)
-          try: body=json.loads(h.get('text',''))
-          except Exception: body={}
-          out={'id':open('/tmp/job-id').read()}
-          if 200 <= code < 300 and body.get('ok'):
-              out.update({
-                'ok':True,
-                'provider_status':body.get('provider_status'),
-                'carrier':body.get('carrier'),
-                'tracking_number':body.get('tracking_number'),
-                'tracking_url':body.get('tracking_url'),
-                'woo_status':body.get('woo_status')
-              })
-          else:
-              out.update({'ok':False,'http_status':code,'error':str(body.get('error') or ('http_'+str(code)))[:400]})
-          json.dump(out,open('/tmp/tracking-complete.json','w'))
-          PY
-
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            -H 'Content-Type: application/json' \
-            --data-binary @/tmp/tracking-complete.json \
-            "$BRIDGE/complete" > /tmp/tracking-result.json
-
-          python3 - <<'PY'
-          import json
-          j=json.load(open('/tmp/tracking-result.json'))
-          print('TRACKING_RESULT=' + str(j.get('stage') or ('retry' if j.get('retry_in_minutes') else 'ok')))
-          if j.get('provider_status'): print('PROVIDER_STATUS=' + str(j['provider_status']))
-          if j.get('tracking_number'): print('TRACKING_NUMBER=present')
-          PY
+          echo "DropEC Order Tracking scheduled polling is temporarily paused."
+          echo "Reason: Supabase Edge Functions are returning HTTP 402 before function execution."
+          echo "No orders are modified and no external fulfillment action is performed."
