@@ -23,185 +23,56 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$BROWSER" ]; then
-            echo "RESULT=browser_missing"
-            exit 1
-          fi
-
+          [ -n "$BROWSER" ] || { echo 'RESULT=browser_missing'; exit 1; }
           PROFILE="$(mktemp -d)"
           HOME_URL="https://radarcommerce.byethost7.com/"
-
-          warm() {
-            timeout 90 "$BROWSER" \
-              --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
-              --user-data-dir="$PROFILE" --virtual-time-budget=30000 \
-              --dump-dom "$HOME_URL" >/tmp/dropec-wallet-warm.html 2>/tmp/dropec-wallet-warm.log || true
-          }
-
-          warm
-          sleep 3
-          warm
-          sleep 2
-
-          "$BROWSER" \
-            --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --user-data-dir="$PROFILE" \
-            --remote-debugging-port=9225 --remote-allow-origins='*' \
-            "$HOME_URL" >/tmp/dropec-wallet-cdp.out 2>/tmp/dropec-wallet-cdp.err &
-          CHROME_PID=$!
-          trap 'kill $CHROME_PID 2>/dev/null || true' EXIT
-
-          for i in $(seq 1 25); do
-            if curl -fsS http://127.0.0.1:9225/json/list >/tmp/dropec-wallet-pages.json 2>/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-
+          warm(){ timeout 90 "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --virtual-time-budget=30000 --dump-dom "$HOME_URL" >/tmp/warm.html 2>/tmp/warm.log || true; }
+          warm; sleep 3; warm; sleep 2
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --remote-debugging-port=9225 --remote-allow-origins='*' "$HOME_URL" >/tmp/cdp.out 2>/tmp/cdp.err &
+          CHROME_PID=$!; trap 'kill $CHROME_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 25); do curl -fsS http://127.0.0.1:9225/json/list >/tmp/pages.json 2>/dev/null && break; sleep 1; done
           python3 -m pip install -q websocket-client
-
           python3 - <<'PY'
-          import json, time, urllib.request
-          import websocket
-
-          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9225/json/list'))
-          page=next((p for p in pages if p.get('type')=='page'), pages[0])
-          ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=150)
-
+          import json,time,urllib.request,websocket
+          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9225/json/list')); page=next((p for p in pages if p.get('type')=='page'),pages[0]); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=150)
           expr=r'''(async()=>{
-            const result={step:'start'};
-            const safeJson=async r=>{try{return await r.clone().json()}catch{return null}};
-            const api='/wp-json/wc/store/v1';
-            let nonce='';
-            let cartToken='';
-            const headers=(extra={})=>{
-              const h={'Content-Type':'application/json',...extra};
-              if(nonce) h['Nonce']=nonce;
-              if(cartToken) h['Cart-Token']=cartToken;
-              return h;
-            };
-            const captureTokens=r=>{
-              nonce=r.headers.get('Nonce')||nonce;
-              cartToken=r.headers.get('Cart-Token')||cartToken;
-            };
-            const post=async(path,body)=>{
-              const r=await fetch(api+path,{method:'POST',credentials:'include',headers:headers(),body:JSON.stringify(body)});
-              captureTokens(r);
-              return {r,j:await safeJson(r),t:await r.clone().text().catch(()=> '')};
-            };
-
-            try {
-              let r=await fetch(api+'/cart',{credentials:'include'});
-              captureTokens(r);
-              let cart=await safeJson(r);
-              result.cart_get_status=r.status;
-              if(!r.ok) throw new Error('cart_get_'+r.status);
-
-              const add=await post('/cart/add-item',{id:29,quantity:1});
-              result.add_status=add.r.status;
-              if(!add.r.ok) throw new Error('add_'+add.r.status+':'+String(add.j?.message||add.j?.code||'failed').slice(0,160));
-              cart=add.j;
-
-              const billing={
-                first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA - NO DESPACHAR',
-                address_1:'PRUEBA TECNICA - NO DESPACHAR',address_2:'NO ENVIAR',
-                city:'Babahoyo',state:'R',postcode:'120150',country:'EC',
-                email:'dropec-wallet-test@example.invalid',phone:'0000000000'
-              };
-              const shipping={
-                first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA - NO DESPACHAR',
-                address_1:'PRUEBA TECNICA - NO DESPACHAR',address_2:'NO ENVIAR',
-                city:'Babahoyo',state:'R',postcode:'120150',country:'EC',phone:'0000000000'
-              };
-
-              const upd=await post('/cart/update-customer',{billing_address:billing,shipping_address:shipping});
-              result.customer_status=upd.r.status;
-              if(!upd.r.ok) throw new Error('customer_'+upd.r.status+':'+String(upd.j?.message||upd.j?.code||'failed').slice(0,160));
-              cart=upd.j;
-
-              const packages=Array.isArray(cart?.shipping_rates)?cart.shipping_rates:[];
-              const firstPackage=packages[0];
-              const rates=Array.isArray(firstPackage?.shipping_rates)?firstPackage.shipping_rates:[];
-              const selected=rates.find(x=>x?.selected)||rates[0];
-              if(selected?.rate_id){
-                const ship=await post('/cart/select-shipping-rate',{package_id:firstPackage?.package_id??0,rate_id:selected.rate_id});
-                result.shipping_select_status=ship.r.status;
-                result.shipping_rate=String(selected.name||selected.rate_id||'selected').slice(0,120);
-                if(ship.r.ok) cart=ship.j;
-              } else {
-                result.shipping_rate='none';
-              }
-
-              const expected=String(cart?.totals?.total_price||'');
-              result.expected_total=expected;
-              result.currency=String(cart?.totals?.currency_code||'USD');
-              result.item_count=Array.isArray(cart?.items)?cart.items.length:null;
-
-              const checkout=await post('/checkout',{
-                billing_address:billing,
-                shipping_address:shipping,
-                payment_method:'cod',
-                expected_total:expected||undefined,
-                customer_note:'PRUEBA TECNICA DROPEC WALLET - NO DESPACHAR - NO ENTREGAR',
-                create_account:false
-              });
-              result.checkout_status=checkout.r.status;
-              result.checkout_code=checkout.j?.code||null;
-              result.checkout_message=String(checkout.j?.message||'').slice(0,240);
-              result.order_id=checkout.j?.order_id||checkout.j?.id||null;
-              result.order_status=checkout.j?.status||checkout.j?.order_status||null;
-              result.payment_status=checkout.j?.payment_status||checkout.j?.payment_result?.payment_status||null;
-              result.payment_result=checkout.j?.payment_result?.redirect_url?'redirect_present':(checkout.j?.payment_result?.payment_status||null);
-
-              if(result.order_id){
-                await new Promise(res=>setTimeout(res,25000));
-                let orderUrl=api+'/order/'+encodeURIComponent(result.order_id);
-                const orderKey=checkout.j?.order_key||checkout.j?.key||'';
-                if(orderKey) orderUrl+='?key='+encodeURIComponent(orderKey);
-                const or=await fetch(orderUrl,{credentials:'include',headers:headers()});
-                const oj=await safeJson(or);
-                result.order_check_status=or.status;
-                result.order_check_order_status=oj?.status||oj?.order_status||null;
-                result.order_check_payment_status=oj?.payment_status||null;
-              }
-
-              result.step='done';
-            } catch(e) {
-              result.step='error';
-              result.error=String(e?.message||e).slice(0,300);
-            }
-            return result;
+            const out={step:'start'},api='/wp-json/wc/store/v1'; let nonce='',cartToken='';
+            const parse=async r=>{try{return await r.clone().json()}catch{return null}};
+            const tok=r=>{nonce=r.headers.get('Nonce')||nonce;cartToken=r.headers.get('Cart-Token')||cartToken};
+            const hdr=()=>{const h={'Content-Type':'application/json'};if(nonce)h.Nonce=nonce;if(cartToken)h['Cart-Token']=cartToken;return h};
+            const post=async(p,b)=>{const r=await fetch(api+p,{method:'POST',credentials:'include',headers:hdr(),body:JSON.stringify(b)});tok(r);return{r,j:await parse(r)}};
+            try{
+              let r=await fetch(api+'/cart',{credentials:'include'});tok(r);out.cart_get_status=r.status;if(!r.ok)throw Error('cart_get_'+r.status);
+              let q=await post('/cart/add-item',{id:29,quantity:1});out.add_status=q.r.status;if(!q.r.ok)throw Error('add_'+q.r.status);
+              const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
+              const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'R',postcode:'120150',country:'EC',phone:'0000000000'};
+              q=await post('/cart/update-customer',{billing_address:billing,shipping_address:shipping});out.customer_status=q.r.status;
+              if(!q.r.ok){out.validation_code=q.j?.code||null;out.validation_message=String(q.j?.message||'').slice(0,240);out.validation_params=q.j?.data?.params||q.j?.data?.details||null;throw Error('customer_'+q.r.status)}
+              let cart=q.j;const packages=Array.isArray(cart?.shipping_rates)?cart.shipping_rates:[],pkg=packages[0],rates=Array.isArray(pkg?.shipping_rates)?pkg.shipping_rates:[],sel=rates.find(x=>x?.selected)||rates[0];
+              if(sel?.rate_id){q=await post('/cart/select-shipping-rate',{package_id:pkg?.package_id??0,rate_id:sel.rate_id});out.shipping_select_status=q.r.status;out.shipping_rate=String(sel.name||sel.rate_id).slice(0,120);if(q.r.ok)cart=q.j}else out.shipping_rate='none';
+              const expected=String(cart?.totals?.total_price||'');out.expected_total=expected;out.currency=String(cart?.totals?.currency_code||'USD');
+              q=await post('/checkout',{billing_address:billing,shipping_address:shipping,payment_method:'cod',expected_total:expected||undefined,customer_note:'PRUEBA TECNICA DROPEC WALLET - NO DESPACHAR - NO ENTREGAR',create_account:false});
+              out.checkout_status=q.r.status;out.checkout_code=q.j?.code||null;out.checkout_message=String(q.j?.message||'').slice(0,240);out.checkout_params=q.j?.data?.params||q.j?.data?.details||null;out.order_id=q.j?.order_id||q.j?.id||null;out.order_status=q.j?.status||q.j?.order_status||null;out.payment_status=q.j?.payment_status||q.j?.payment_result?.payment_status||null;
+              if(out.order_id){await new Promise(r=>setTimeout(r,25000));let u=api+'/order/'+encodeURIComponent(out.order_id),k=q.j?.order_key||q.j?.key||'';if(k)u+='?key='+encodeURIComponent(k);let or=await fetch(u,{credentials:'include',headers:hdr()});let oj=await parse(or);out.order_check_status=or.status;out.order_check_order_status=oj?.status||oj?.order_status||null}
+              out.step='done';
+            }catch(e){out.step='error';out.error=String(e?.message||e).slice(0,200)}return out;
           })()'''
-
-          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
-          deadline=time.time()+170
-          result=None
+          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}})); result=None; deadline=time.time()+170
           while time.time()<deadline:
-              msg=json.loads(ws.recv())
-              if msg.get('id')==1:
-                  result=msg
-                  break
-          ws.close()
-          if not result:
-              raise SystemExit('CDP timeout')
-          value=result.get('result',{}).get('result',{}).get('value')
-          if not isinstance(value,dict):
-              raise SystemExit('Invalid browser result')
-          json.dump(value,open('/tmp/dropec-wallet-result.json','w'))
+            m=json.loads(ws.recv())
+            if m.get('id')==1: result=m; break
+          ws.close();
+          if not result: raise SystemExit('CDP timeout')
+          v=result.get('result',{}).get('result',{}).get('value');
+          if not isinstance(v,dict): raise SystemExit('Invalid browser result')
+          json.dump(v,open('/tmp/result.json','w'))
           PY
-
-          kill "$CHROME_PID" 2>/dev/null || true
-          trap - EXIT
-
+          kill "$CHROME_PID" 2>/dev/null || true; trap - EXIT
           python3 - <<'PY'
           import json
-          r=json.load(open('/tmp/dropec-wallet-result.json'))
-          allowed=['step','error','cart_get_status','add_status','customer_status','shipping_select_status','shipping_rate','expected_total','currency','item_count','checkout_status','checkout_code','checkout_message','order_id','order_status','payment_status','payment_result','order_check_status','order_check_order_status','order_check_payment_status']
-          for k in allowed:
-              if k in r and r[k] is not None:
-                  print(f'{k.upper()}={r[k]}')
-          if r.get('step')!='done':
-              raise SystemExit(1)
+          r=json.load(open('/tmp/result.json'))
+          for k in ['step','error','cart_get_status','add_status','customer_status','validation_code','validation_message','validation_params','shipping_select_status','shipping_rate','expected_total','currency','checkout_status','checkout_code','checkout_message','checkout_params','order_id','order_status','payment_status','order_check_status','order_check_order_status']:
+              if k in r and r[k] is not None: print(f'{k.upper()}={r[k]}')
+          if r.get('step')!='done': raise SystemExit(1)
           PY
