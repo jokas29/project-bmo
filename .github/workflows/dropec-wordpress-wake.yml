@@ -1,60 +1,17 @@
-name: DropEC Wallet Controlled Test
+name: DropEC WordPress Wake
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/dropec-wordpress-wake.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  inspect-payment:
+  paused:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: Inspect checkout payment gateways
-        shell: bash
+      - name: Paused while Supabase service is restricted
         run: |
-          set -euo pipefail
-          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)"
-          PROFILE="$(mktemp -d)"; HOME_URL="https://radarcommerce.byethost7.com/"
-          warm(){ timeout 90 "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --virtual-time-budget=30000 --dump-dom "$HOME_URL" >/tmp/warm.html 2>/tmp/warm.log || true; }
-          warm; sleep 3; warm; sleep 2
-          "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --remote-debugging-port=9225 --remote-allow-origins='*' "$HOME_URL" >/tmp/cdp.out 2>/tmp/cdp.err &
-          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
-          for i in $(seq 1 25); do curl -fsS http://127.0.0.1:9225/json/list >/tmp/pages.json 2>/dev/null && break; sleep 1; done
-          python3 -m pip install -q websocket-client
-          python3 - <<'PY'
-          import json,time,urllib.request,websocket
-          p=json.load(urllib.request.urlopen('http://127.0.0.1:9225/json/list')); page=next(x for x in p if x.get('type')=='page'); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=120)
-          expr=r'''(async()=>{
-            const api='/wp-json/wc/store/v1';let nonce='',cartToken='';
-            const tok=r=>{nonce=r.headers.get('Nonce')||nonce;cartToken=r.headers.get('Cart-Token')||cartToken};
-            let r=await fetch(api+'/cart',{credentials:'include'});tok(r);
-            const h=()=>{const x={'Content-Type':'application/json'};if(nonce)x.Nonce=nonce;if(cartToken)x['Cart-Token']=cartToken;return x};
-            r=await fetch(api+'/cart/add-item',{method:'POST',credentials:'include',headers:h(),body:JSON.stringify({id:29,quantity:1})});tok(r);
-            const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
-            const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',phone:'0000000000'};
-            await fetch(api+'/cart/update-customer',{method:'POST',credentials:'include',headers:h(),body:JSON.stringify({billing_address:billing,shipping_address:shipping})});
-            location.href='/checkout/'; return {navigating:true};
-          })()'''
-          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
-          while True:
-            m=json.loads(ws.recv())
-            if m.get('id')==1: break
-          time.sleep(12)
-          inspect=r'''(()=>{
-            const classic=[...document.querySelectorAll('input[name="payment_method"]')].map(i=>({value:i.value,id:i.id,label:(document.querySelector('label[for="'+i.id+'"]')?.innerText||'').trim()}));
-            const text=(document.body?.innerText||'').split('\n').filter(x=>/payphone|pago|payment|tarjeta|transfer|contra entrega/i.test(x)).slice(0,30);
-            const html=[...document.querySelectorAll('[class*="payment"],[id*="payment"],[data-payment-method]')].slice(0,40).map(x=>({tag:x.tagName,id:x.id,cls:x.className,value:x.getAttribute('value'),data:x.getAttribute('data-payment-method'),text:(x.innerText||'').trim().slice(0,160)}));
-            return {url:location.href,title:document.title,classic,text,html};
-          })()'''
-          ws.send(json.dumps({'id':2,'method':'Runtime.evaluate','params':{'expression':inspect,'returnByValue':True}}))
-          while True:
-            m=json.loads(ws.recv())
-            if m.get('id')==2:
-              v=m.get('result',{}).get('result',{}).get('value');break
-          ws.close(); print(json.dumps(v,ensure_ascii=False))
-          PY
+          echo "DropEC WordPress Wake scheduled polling is temporarily paused."
+          echo "Reason: Supabase Edge Functions are returning HTTP 402 before function execution."
+          echo "No WordPress or shipping bridge action is executed."
