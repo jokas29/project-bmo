@@ -5,77 +5,56 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/dropec-wordpress-wake.yml'
-  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: dropec-wallet-controlled-test
-  cancel-in-progress: false
-
 jobs:
-  wallet-test:
+  inspect-payment:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 6
     steps:
-      - name: Create one isolated Woo test order
+      - name: Inspect checkout payment gateways
         shell: bash
         run: |
           set -euo pipefail
-          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          [ -n "$BROWSER" ] || { echo 'RESULT=browser_missing'; exit 1; }
+          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)"
           PROFILE="$(mktemp -d)"; HOME_URL="https://radarcommerce.byethost7.com/"
           warm(){ timeout 90 "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --virtual-time-budget=30000 --dump-dom "$HOME_URL" >/tmp/warm.html 2>/tmp/warm.log || true; }
           warm; sleep 3; warm; sleep 2
           "$BROWSER" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --user-data-dir="$PROFILE" --remote-debugging-port=9225 --remote-allow-origins='*' "$HOME_URL" >/tmp/cdp.out 2>/tmp/cdp.err &
-          CHROME_PID=$!; trap 'kill $CHROME_PID 2>/dev/null || true' EXIT
+          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT
           for i in $(seq 1 25); do curl -fsS http://127.0.0.1:9225/json/list >/tmp/pages.json 2>/dev/null && break; sleep 1; done
           python3 -m pip install -q websocket-client
           python3 - <<'PY'
           import json,time,urllib.request,websocket
-          pages=json.load(urllib.request.urlopen('http://127.0.0.1:9225/json/list')); page=next((p for p in pages if p.get('type')=='page'),pages[0]); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=160)
+          p=json.load(urllib.request.urlopen('http://127.0.0.1:9225/json/list')); page=next(x for x in p if x.get('type')=='page'); ws=websocket.create_connection(page['webSocketDebuggerUrl'],timeout=120)
           expr=r'''(async()=>{
-            const out={step:'start'},api='/wp-json/wc/store/v1';let nonce='',cartToken='';
-            const parse=async r=>{try{return await r.clone().json()}catch{return null}};const tok=r=>{nonce=r.headers.get('Nonce')||nonce;cartToken=r.headers.get('Cart-Token')||cartToken};
-            const hdr=()=>{const h={'Content-Type':'application/json'};if(nonce)h.Nonce=nonce;if(cartToken)h['Cart-Token']=cartToken;return h};
-            const post=async(p,b)=>{const r=await fetch(api+p,{method:'POST',credentials:'include',headers:hdr(),body:JSON.stringify(b)});tok(r);return{r,j:await parse(r)}};
-            try{
-              let r=await fetch(api+'/cart',{credentials:'include'});tok(r);out.cart_get_status=r.status;if(!r.ok)throw Error('cart_get_'+r.status);
-              let q=await post('/cart/add-item',{id:29,quantity:1});out.add_status=q.r.status;if(!q.r.ok)throw Error('add_'+q.r.status);
-              const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
-              const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',phone:'0000000000'};
-              q=await post('/cart/update-customer',{billing_address:billing,shipping_address:shipping});out.customer_status=q.r.status;if(!q.r.ok)throw Error('customer_'+q.r.status);
-              let cart=q.j,packages=Array.isArray(cart?.shipping_rates)?cart.shipping_rates:[],pkg=packages[0],rates=Array.isArray(pkg?.shipping_rates)?pkg.shipping_rates:[],sel=rates.find(x=>x?.selected)||rates[0];
-              if(sel?.rate_id){q=await post('/cart/select-shipping-rate',{package_id:pkg?.package_id??0,rate_id:sel.rate_id});out.shipping_select_status=q.r.status;out.shipping_rate=String(sel.name||sel.rate_id).slice(0,120);if(q.r.ok)cart=q.j}else out.shipping_rate='none';
-              const expected=String(cart?.totals?.total_price||'');out.expected_total=expected;out.currency=String(cart?.totals?.currency_code||'USD');
-              const body=(method)=>({billing_address:billing,shipping_address:shipping,payment_method:method,expected_total:expected||undefined,customer_note:'PRUEBA TECNICA DROPEC WALLET - NO DESPACHAR - NO ENTREGAR',create_account:false});
-              for(const method of ['bacs','cheque']){
-                q=await post('/checkout',body(method));out['checkout_'+method+'_status']=q.r.status;out['checkout_'+method+'_code']=q.j?.code||null;out['checkout_'+method+'_message']=String(q.j?.message||'').slice(0,220);
-                const oid=q.j?.order_id||q.j?.id||null;
-                if(q.r.ok&&oid){out.payment_method_used=method;out.checkout_status=q.r.status;out.order_id=oid;out.order_status=q.j?.status||q.j?.order_status||null;out.payment_status=q.j?.payment_status||q.j?.payment_result?.payment_status||null;out.order_key_present=Boolean(q.j?.order_key||q.j?.key);break}
-                if(oid){out.payment_method_used=method;out.checkout_status=q.r.status;out.order_id=oid;out.order_status=q.j?.status||q.j?.order_status||null;break}
-              }
-              if(out.order_id){await new Promise(r=>setTimeout(r,30000));let u=api+'/order/'+encodeURIComponent(out.order_id);let or=await fetch(u,{credentials:'include',headers:hdr()});let oj=await parse(or);out.order_check_status=or.status;out.order_check_order_status=oj?.status||oj?.order_status||null;out.order_check_payment_status=oj?.payment_status||null;out.order_check_message=String(oj?.message||'').slice(0,220)}
-              out.step='done';
-            }catch(e){out.step='error';out.error=String(e?.message||e).slice(0,220)}return out;
+            const api='/wp-json/wc/store/v1';let nonce='',cartToken='';
+            const tok=r=>{nonce=r.headers.get('Nonce')||nonce;cartToken=r.headers.get('Cart-Token')||cartToken};
+            let r=await fetch(api+'/cart',{credentials:'include'});tok(r);
+            const h=()=>{const x={'Content-Type':'application/json'};if(nonce)x.Nonce=nonce;if(cartToken)x['Cart-Token']=cartToken;return x};
+            r=await fetch(api+'/cart/add-item',{method:'POST',credentials:'include',headers:h(),body:JSON.stringify({id:29,quantity:1})});tok(r);
+            const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
+            const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',phone:'0000000000'};
+            await fetch(api+'/cart/update-customer',{method:'POST',credentials:'include',headers:h(),body:JSON.stringify({billing_address:billing,shipping_address:shipping})});
+            location.href='/checkout/'; return {navigating:true};
           })()'''
-          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}})); result=None;deadline=time.time()+190
-          while time.time()<deadline:
+          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}}))
+          while True:
             m=json.loads(ws.recv())
-            if m.get('id')==1: result=m;break
-          ws.close();
-          if not result: raise SystemExit('CDP timeout')
-          v=result.get('result',{}).get('result',{}).get('value');
-          if not isinstance(v,dict): raise SystemExit('Invalid browser result')
-          json.dump(v,open('/tmp/result.json','w'))
-          PY
-          kill "$CHROME_PID" 2>/dev/null || true; trap - EXIT
-          python3 - <<'PY'
-          import json
-          r=json.load(open('/tmp/result.json'))
-          keys=['step','error','cart_get_status','add_status','customer_status','shipping_select_status','shipping_rate','expected_total','currency','checkout_bacs_status','checkout_bacs_code','checkout_bacs_message','checkout_cheque_status','checkout_cheque_code','checkout_cheque_message','payment_method_used','checkout_status','order_id','order_status','payment_status','order_key_present','order_check_status','order_check_order_status','order_check_payment_status','order_check_message']
-          for k in keys:
-              if k in r and r[k] is not None: print(f'{k.upper()}={r[k]}')
-          if r.get('step')!='done': raise SystemExit(1)
+            if m.get('id')==1: break
+          time.sleep(12)
+          inspect=r'''(()=>{
+            const classic=[...document.querySelectorAll('input[name="payment_method"]')].map(i=>({value:i.value,id:i.id,label:(document.querySelector('label[for="'+i.id+'"]')?.innerText||'').trim()}));
+            const text=(document.body?.innerText||'').split('\n').filter(x=>/payphone|pago|payment|tarjeta|transfer|contra entrega/i.test(x)).slice(0,30);
+            const html=[...document.querySelectorAll('[class*="payment"],[id*="payment"],[data-payment-method]')].slice(0,40).map(x=>({tag:x.tagName,id:x.id,cls:x.className,value:x.getAttribute('value'),data:x.getAttribute('data-payment-method'),text:(x.innerText||'').trim().slice(0,160)}));
+            return {url:location.href,title:document.title,classic,text,html};
+          })()'''
+          ws.send(json.dumps({'id':2,'method':'Runtime.evaluate','params':{'expression':inspect,'returnByValue':True}}))
+          while True:
+            m=json.loads(ws.recv())
+            if m.get('id')==2:
+              v=m.get('result',{}).get('result',{}).get('value');break
+          ws.close(); print(json.dumps(v,ensure_ascii=False))
           PY
