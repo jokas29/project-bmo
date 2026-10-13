@@ -45,8 +45,8 @@ jobs:
             try{
               let r=await fetch(api+'/cart',{credentials:'include'});tok(r);out.cart_get_status=r.status;if(!r.ok)throw Error('cart_get_'+r.status);
               let q=await post('/cart/add-item',{id:29,quantity:1});out.add_status=q.r.status;if(!q.r.ok)throw Error('add_'+q.r.status);
-              const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
-              const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'R',postcode:'120150',country:'EC',phone:'0000000000'};
+              const billing={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',email:'wallet-test@example.com',phone:'0000000000'};
+              const shipping={first_name:'DropEC',last_name:'WalletTest',company:'PRUEBA TECNICA',address_1:'NO DESPACHAR',address_2:'NO ENVIAR',city:'Babahoyo',state:'EC-R',postcode:'120150',country:'EC',phone:'0000000000'};
               q=await post('/cart/update-customer',{billing_address:billing,shipping_address:shipping});out.customer_status=q.r.status;
               if(!q.r.ok){out.validation_code=q.j?.code||null;out.validation_message=String(q.j?.message||'').slice(0,240);out.validation_params=q.j?.data?.params||q.j?.data?.details||null;throw Error('customer_'+q.r.status)}
               let cart=q.j;const packages=Array.isArray(cart?.shipping_rates)?cart.shipping_rates:[],pkg=packages[0],rates=Array.isArray(pkg?.shipping_rates)?pkg.shipping_rates:[],sel=rates.find(x=>x?.selected)||rates[0];
@@ -54,11 +54,11 @@ jobs:
               const expected=String(cart?.totals?.total_price||'');out.expected_total=expected;out.currency=String(cart?.totals?.currency_code||'USD');
               q=await post('/checkout',{billing_address:billing,shipping_address:shipping,payment_method:'cod',expected_total:expected||undefined,customer_note:'PRUEBA TECNICA DROPEC WALLET - NO DESPACHAR - NO ENTREGAR',create_account:false});
               out.checkout_status=q.r.status;out.checkout_code=q.j?.code||null;out.checkout_message=String(q.j?.message||'').slice(0,240);out.checkout_params=q.j?.data?.params||q.j?.data?.details||null;out.order_id=q.j?.order_id||q.j?.id||null;out.order_status=q.j?.status||q.j?.order_status||null;out.payment_status=q.j?.payment_status||q.j?.payment_result?.payment_status||null;
-              if(out.order_id){await new Promise(r=>setTimeout(r,25000));let u=api+'/order/'+encodeURIComponent(out.order_id),k=q.j?.order_key||q.j?.key||'';if(k)u+='?key='+encodeURIComponent(k);let or=await fetch(u,{credentials:'include',headers:hdr()});let oj=await parse(or);out.order_check_status=or.status;out.order_check_order_status=oj?.status||oj?.order_status||null}
+              if(out.order_id){await new Promise(r=>setTimeout(r,30000));let u=api+'/order/'+encodeURIComponent(out.order_id),k=q.j?.order_key||q.j?.key||'';if(k)u+='?key='+encodeURIComponent(k);let or=await fetch(u,{credentials:'include',headers:hdr()});let oj=await parse(or);out.order_check_status=or.status;out.order_check_order_status=oj?.status||oj?.order_status||null;out.order_check_payment_status=oj?.payment_status||null;out.order_check_message=String(oj?.message||'').slice(0,220)}
               out.step='done';
             }catch(e){out.step='error';out.error=String(e?.message||e).slice(0,200)}return out;
           })()'''
-          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}})); result=None; deadline=time.time()+170
+          ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'awaitPromise':True,'returnByValue':True}})); result=None; deadline=time.time()+180
           while time.time()<deadline:
             m=json.loads(ws.recv())
             if m.get('id')==1: result=m; break
@@ -72,7 +72,7 @@ jobs:
           python3 - <<'PY'
           import json
           r=json.load(open('/tmp/result.json'))
-          for k in ['step','error','cart_get_status','add_status','customer_status','validation_code','validation_message','validation_params','shipping_select_status','shipping_rate','expected_total','currency','checkout_status','checkout_code','checkout_message','checkout_params','order_id','order_status','payment_status','order_check_status','order_check_order_status']:
+          for k in ['step','error','cart_get_status','add_status','customer_status','validation_code','validation_message','validation_params','shipping_select_status','shipping_rate','expected_total','currency','checkout_status','checkout_code','checkout_message','checkout_params','order_id','order_status','payment_status','order_check_status','order_check_order_status','order_check_payment_status','order_check_message']:
               if k in r and r[k] is not None: print(f'{k.upper()}={r[k]}')
           if r.get('step')!='done': raise SystemExit(1)
           PY
