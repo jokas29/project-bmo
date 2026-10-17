@@ -8,7 +8,7 @@ const env: Settings = {
   DROPI_MCP_QUOTE_TOOL: "quote_shipping",
   DROPI_MCP_GET_ORDER_TOOL: "get_order",
 };
-const url = "https://example.supabase.co/functions/v1/dropec-dropi-mcp-readonly";
+const url = "https://example.supabase.co";
 function request(route: string, options: { method?: string; input?: unknown; key?: string } = {}): Request {
   const method = options.method || "POST";
   return new Request(url + route, {
@@ -32,7 +32,7 @@ function mockMcp(tools: unknown[], seen: string[]): typeof fetch {
       "content-type": "application/json", "mcp-session-id": "test-session"
     } });
   };
-  return fn as typeof fetch;
+  return fn as unknown as typeof fetch;
 }
 Deno.test("only known read-only actions can call tools", () => {
   assert(toolAllowed("quote", "Quote Shipping"));
