@@ -1,4 +1,7 @@
-import { assertEquals, assert } from "jsr:@std/assert@1";
+function assert(value: unknown): asserts value { if (!value) throw new Error("assert_failed"); }
+function assertEquals(actual: unknown, expected: unknown) {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("assert_equals_failed");
+}
 import { authenticated, handler, toolAllowed, hasRuntimeCredentials, type Settings } from "./core.ts";
 
 const env: Settings = {
