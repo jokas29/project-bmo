@@ -59,3 +59,19 @@ Con Deno: deno test dropec/mcp-readonly/core.test.ts
 Las pruebas no requieren Internet ni secretos y simulan el servidor; no demuestran conexión real ni permiso OAuth.
 
 **Nunca** activar Create Order o migrar credenciales de Supabase A para esta prueba.
+
+## Diagnóstico OAuth desde Supabase B — 2026-10-17 (solo lectura)
+
+Se consultaron únicamente metadatos públicos, sin contraseñas, tokens ni creación de pedidos.
+
+- GET `https://mcp.dropi.co/mcp` ⇒ **401**, cabecera WWW-Authenticate: Bearer resource_metadata=`https://mcp.dropi.co/.well-known/oauth-protected-resource/mcp`.
+- GET metadata del recurso ⇒ **200**, resource `https://mcp.dropi.co/mcp`, authorization_servers **`https://integrations.dropi.co/bff`**, scope `mcp`.
+- GET `https://integrations.dropi.co/bff/.well-known/oauth-authorization-server` ⇒ **200**, PERO issuer anunciado = **`https://integrations.dropi.co`** (sin /bff).
+- GET `https://integrations.dropi.co/.well-known/oauth-authorization-server/bff` ⇒ **404**.
+- Metadata del servidor anuncia authorization_code + refresh_token con PKCE S256, authorization_endpoint `https://oauth.dropi.co/oauth/authorize`, token_endpoint `https://integrations.dropi.co/oauth/token`, registration_endpoint `https://integrations.dropi.co/oauth/register`.
+
+**Bloqueo confirmado**: discrepancia entre authorization_servers y issuer. No ignorar ni sobrescribir la validación de issuer; solicitar a soporte Dropi que alinee metadatos. No efectuar client registration ni intentar autorizar una sesión desde el backend hasta resolver el emisor y el callback OAuth/PKCE.
+
+La página oficial actual de Dropi (https://dropi.co/br/mcp-claude) declara compatibilidad con **Ecuador** y advierte que solo se permite una sesión activa por cuenta. Un backend de DropEC puede competir con otra sesión de usuario; consultar a Dropi si el uso server-to-server está contemplado antes de vincularlo.
+
+En esta prueba no hubo llamadas `tools/call`, cotizaciones reales, consulta de órdenes ni cargo a wallet; los controles globales de DropEC permanecen apagados.
