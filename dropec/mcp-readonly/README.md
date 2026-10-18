@@ -13,7 +13,7 @@ Fuente: manual oficial *Conectar tu Agente de IA con el MCP de Dropi*, página 5
 
 Código experimental aislado en rama de GitHub. La Edge Function ya está desplegada en Supabase B, con verify_jwt=true, pero desactivada y NO conectada a Dropi. El PDF explica OAuth interactivo para asistentes, pero no documenta un token de servidor para DropEC ni cómo renovarlo. **No** reutilizar la sesión de Claude/ChatGPT ni publicar tokens. Es necesario verificar cómo autorizar legal y técnicamente un cliente de backend propio.
 
-Supabase B (ubxkqbnzdtgfvphwohzm) ya es accesible mediante su cuenta conectada. La función dropec-dropi-mcp-readonly v1 está desplegada en B, con JWT obligatorio y sin OAuth activo. No desplegar en A.
+Supabase B (ubxkqbnzdtgfvphwohzm) ya es accesible mediante su cuenta conectada. La función dropec-dropi-mcp-readonly **v2** está desplegada en B, con JWT obligatorio y sin OAuth activo. No desplegar en A.
 
 ## Protección
 
@@ -138,7 +138,7 @@ El único campo aceptado es id (string no vacío, por ejemplo ORD-2025-0001). La
 - Las respuestas por transportadora pueden incluir carrier, service, shipping_cost, insurance, trajectory y error; el MCP no declaró un JSON Schema formal de respuesta. El adaptador no presume una forma específica de éxito. Hay que interpretar y verificar cada resultado antes de mostrar precios al cliente.
 - Para isError=true a nivel de herramienta MCP, el adaptador devuelve error 502 tipado en lugar de éxito.
 - Los tipos SIMPLE, VARIABLE y COMBO se conocen por la descripción, no por un enum formal del esquema remoto.
-- Las pruebas automatizadas son simuladas; todavía falta validar el contrato con acceso OAuth propio desde Supabase B.
+- Las pruebas automatizadas son simuladas: **10 aprobadas, 0 fallidas** en GitHub Actions (2026-10-17). Todavía falta validar el contrato con acceso OAuth propio desde Supabase B.
 
 ### Próximos pasos
 
@@ -148,3 +148,12 @@ El único campo aceptado es id (string no vacío, por ejemplo ORD-2025-0001). La
 4. Actualizar y redesplegar la función de B **solo cuando pase pruebas**; mantener deshabilitado el gate OAuth.
 5. Probar cotización en modo consulta sin recaudo y con ciudad válida; comparar sin asumir que Quito sea el origen MCP.
 6. Integrar como fallback solo después de confirmar resultados y privacidad.
+
+## Verificación después del despliegue v2
+
+- GitHub Actions: **10 pruebas Deno superadas, 0 fallidas**, ejecución aislada sin permisos de red y sin credenciales, acción `Offline MCP read-only contract tests`.
+- Supabase B: `dropec-dropi-mcp-readonly` **ACTIVE v2**, `verify_jwt=true`.
+- Petición `/health` sin JWT ⇒ HTTP 401, `UNAUTHORIZED_NO_AUTH_HEADER`.
+- `dropec_private.commerce_ready()` ⇒ **false** y `bot_order_jobs` ⇒ **0** en B.
+- Gate MCP/OAuth sigue sin configurar: no hubo `tools/call` desde B, no se gastó wallet ni se crearon pedidos.
+- PR #12 continúa como borrador, no fusionada. La función v2 se desplegó únicamente en B para validar que se conserva el control de acceso; no interviene en checkout.
