@@ -111,7 +111,7 @@ export function tokenRequest(data: {
 export function validateToken(data: unknown): {
   accessToken: string; refreshToken: string; expiresIn: number; scope: string;
 } | null {
-  if (!isObject(data) || data.token_type !== "Bearer" ||
+  if (!isObject(data) || String(data.token_type).toLowerCase() !== "bearer" ||
       typeof data.access_token !== "string" || data.access_token.length < 20 ||
       typeof data.refresh_token !== "string" || data.refresh_token.length < 20 ||
       typeof data.expires_in !== "number" || !Number.isFinite(data.expires_in) ||
@@ -122,5 +122,36 @@ export function validateToken(data: unknown): {
     refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
     scope: (data.scope as string | undefined) ?? OAUTH.scope,
+  };
+}
+
+export function refreshRequest(clientId: string, refreshToken: string): URLSearchParams {
+  if (!/^[A-Za-z0-9._~:-]{4,512}$/.test(clientId)) throw Error("invalid_client_id");
+  if (typeof refreshToken !== "string" || refreshToken.length < 20 || refreshToken.length > 16000)
+    throw Error("invalid_refresh_token");
+  return new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: clientId,
+    refresh_token: refreshToken,
+    resource: OAUTH.resource,
+  });
+}
+export function validateRefreshedToken(data: unknown, previousRefresh: string): {
+  accessToken: string; refreshToken: string; expiresIn: number; scope: string;
+} | null {
+  if (!isObject(data) || String(data.token_type).toLowerCase() !== "bearer" ||
+      typeof data.access_token !== "string" || data.access_token.length < 20 ||
+      typeof data.expires_in !== "number" || !Number.isFinite(data.expires_in) ||
+      data.expires_in <= 30 || data.expires_in > 2592000 ||
+      (data.refresh_token != null && (
+        typeof data.refresh_token !== "string" || data.refresh_token.length < 20
+      ))) return null;
+  const scope = typeof data.scope === "string" ? data.scope : OAUTH.scope;
+  if (scope.split(/\\s+/).some(s => s !== "mcp")) return null;
+  return {
+    accessToken: data.access_token,
+    refreshToken: typeof data.refresh_token === "string" ? data.refresh_token : previousRefresh,
+    expiresIn: data.expires_in,
+    scope,
   };
 }
