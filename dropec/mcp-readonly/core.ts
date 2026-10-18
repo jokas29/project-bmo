@@ -1,3 +1,5 @@
+import { validateToolInput } from "./validate.ts";
+
 // DropEC / Dropi MCP: deliberately read-only transport.
 // Endpoint and tool names are NOT user-controlled. This module never calls Create Order.
 export const DROPI_MCP_URL = "https://mcp.dropi.co/mcp";
@@ -163,6 +165,9 @@ export async function handler(req: Request, env: Settings, fetcher: Fetcher = fe
       }
       input = parsed.input;
     } catch { return reply(400, { ok: false, error: "request_invalid" }); }
+    const action: Action = path === "/quote" ? "quote" : "get-order";
+    const validationError = validateToolInput(action, input);
+    if (validationError) return reply(400, { ok: false, error: validationError });
   }
   try {
     const sessionId = await connect(fetcher, token);
