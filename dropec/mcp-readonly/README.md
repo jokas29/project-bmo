@@ -157,3 +157,17 @@ El único campo aceptado es id (string no vacío, por ejemplo ORD-2025-0001). La
 - `dropec_private.commerce_ready()` ⇒ **false** y `bot_order_jobs` ⇒ **0** en B.
 - Gate MCP/OAuth sigue sin configurar: no hubo `tools/call` desde B, no se gastó wallet ni se crearon pedidos.
 - PR #12 continúa como borrador, no fusionada. La función v2 se desplegó únicamente en B para validar que se conserva el control de acceso; no interviene en checkout.
+
+## Auditoría OAuth estricta y prueba en B — 2026-10-17
+
+- Se descubrió un callback OAuth separado `dropec-dropi-oauth`, registro dinámico (todavía bloqueado), PKCE S256, estado de un solo uso, Vault y renovación de tokens. No está conectado a la cuenta de Dropi.
+- La discrepancia OAuth **persistió**: `authorization_servers=[https://integrations.dropi.co/bff]` pero la metadata publica `issuer=https://integrations.dropi.co`. No se debe interpretar el alias `/bff` como una identidad válida sin confirmación del proveedor.
+- **Cambio de seguridad:** `validateMetadata` ahora exige que la identificación de servidor en `authorization_servers` y el `issuer` sean exactamente iguales al `https://integrations.dropi.co` fijado. Mientras Dropi no lo corrija, `start` aborta **sin registrar cliente OAuth ni generar enlaces de consentimiento**. La aprobación manual no ignora esta comprobación.
+- **Cambio de seguridad:** callback comprueba de nuevo `setup_enabled`, `pinned_issuer_approved` y `session_replacement_ack` antes de intentar canjear o guardar credenciales. Si la autorización se revoca durante el proceso, responde fallo.
+- Actualicé solo el servicio **`dropec-dropi-oauth` v2** en Supabase B, con callback público `verify_jwt=false` (necesario para redirección OAuth), pero `/start` y `/status` exigen una clave de configuración privada.
+- Pruebas HTTP sin credenciales: GET `/status` -> **401**, POST `/start` -> **401**, GET `/callback` sin parámetros -> **400**. No hubo canje de token ni registro de cliente.
+- Gates leídos desde B: `setup_enabled=false`, `pinned_issuer_approved=false`, `session_replacement_ack=false`, `readonly_enabled=false`; ninguna sesión guardada y cero consentimientos activos. `commerce_ready=false`, `bot_order_jobs=0`.
+- La sesión conectada en Claude puede cerrarse si en el futuro se autoriza DropEC; el usuario debe aceptarlo explícitamente. El scope `mcp` también concede al cliente OAuth permiso de `create_order`, aunque nuestro adaptador de backend lo bloquea por código; el riesgo debe indicarse claramente antes de autorización.
+- No modificar por SQL manualmente los gates antes de reparar la metadata OAuth del proveedor y verificar el flujo de consentimiento. No extraer claves internas del Vault a chat o logs.
+
+La función de consultas `dropec-dropi-mcp-readonly` permanece desactivada, aunque esté desplegada. Las pruebas automáticas no equivalen a llamadas autenticadas al MCP.
