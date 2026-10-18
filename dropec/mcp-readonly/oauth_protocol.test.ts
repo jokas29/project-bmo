@@ -36,13 +36,19 @@ Deno.test("state and verifier are cryptographically random and correctly shaped"
   assert(/^[a-zA-Z0-9_-]{43}$/.test(a));
   throws(() => nonce(12));
 });
-Deno.test("metadata pins Dropi protected resource and trusted root issuer", () => {
-  equal(validateMetadata(resource, issuer), true);
-  equal(validateMetadata({ ...resource, resource: "https://wrong.example/mcp" }, issuer), false);
-  equal(validateMetadata(resource, { ...issuer, issuer: OAUTH.advertisedServer }), false);
-  equal(validateMetadata(resource, { ...issuer, token_endpoint: "https://example.com/steal" }), false);
-  equal(validateMetadata({ ...resource, authorization_servers: ["https://evil.example"] }, issuer), false);
-  equal(validateMetadata(resource, { ...issuer, code_challenge_methods_supported: ["plain"] }), false);
+Deno.test("OAuth discovery fails closed on the live /bff versus root issuer mismatch", () => {
+  // Dropi's current public metadata: the protected resource advertises /bff
+  // but the authorization-server metadata says the root is the issuer.
+  equal(validateMetadata(resource, issuer), false);
+  // After Dropi aligns the resource's authorization_servers to the exact
+  // pinned issuer, the metadata can be accepted without weakening checks.
+  const corrected = { ...resource, authorization_servers: [OAUTH.issuer] };
+  equal(validateMetadata(corrected, issuer), true);
+  equal(validateMetadata({ ...corrected, resource: "https://wrong.example/mcp" }, issuer), false);
+  equal(validateMetadata(corrected, { ...issuer, issuer: OAUTH.advertisedServer }), false);
+  equal(validateMetadata(corrected, { ...issuer, token_endpoint: "https://example.com/steal" }), false);
+  equal(validateMetadata({ ...corrected, authorization_servers: ["https://evil.example"] }, issuer), false);
+  equal(validateMetadata(corrected, { ...issuer, code_challenge_methods_supported: ["plain"] }), false);
 });
 Deno.test("OAuth registration always binds to the exact B callback", () => {
   const redirect = redirectUriForB("ubxkqbnzdtgfvphwohzm");
