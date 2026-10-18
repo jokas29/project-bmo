@@ -48,11 +48,18 @@ Deno.test("unverified provider bridge remains blocked even with fresh worker hea
   equal(value.quote_processing_ready, false);
   equal(value.blockers, ["provider_bridge_not_verified_recently"]);
 });
-Deno.test("partial warehouse coverage cannot silently qualify as ready", () => {
+Deno.test("partial warehouse coverage is warned, not a global blocker", () => {
   const value = assessShipping({ ...allReady, products_with_valid_origin: 62 }, now);
-  equal(value.quote_processing_ready, false);
+  equal(value.quote_processing_ready, true);
   equal(value.coverage.missing_origin, 1);
-  equal(value.blockers, ["origin_coverage_incomplete"]);
+  equal(value.blockers, []);
+  equal(value.warnings, ["origin_coverage_incomplete"]);
+});
+Deno.test("zero fresh origins always blocks new quotes", () => {
+  const value = assessShipping({ ...allReady, products_with_valid_origin: 0 }, now);
+  equal(value.quote_processing_ready, false);
+  equal(value.blockers, ["origin_catalog_empty"]);
+  equal(value.warnings, ["origin_coverage_incomplete"]);
 });
 Deno.test("WooCommerce signature, bot secret and enabled flags are all required", () => {
   const value = assessShipping({
