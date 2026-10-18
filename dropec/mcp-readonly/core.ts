@@ -183,6 +183,18 @@ export async function handler(req: Request, env: Settings, fetcher: Fetcher = fe
     const result = await postRpc(fetcher, token, {
       jsonrpc: "2.0", id: 30, method: "tools/call", params: { name, arguments: input }
     }, sessionId, 30);
+    if (result.response?.isError === true) {
+      // MCP tools may return a business error in an otherwise successful JSON-RPC
+      // response. Never present that as a successful shipping quote.
+      const blocks = Array.isArray(result.response.content) ? result.response.content : [];
+      const message = blocks.filter(isRecord).map((v) => typeof v.text === "string" ? v.text : "").join(" ").slice(0, 2500);
+      const cause =
+        /tcc.{0,100}linea|indicar la linea/i.test(message) ? "carrier_line_required" :
+        /credenciales inv[aá]lidas/i.test(message) ? "carrier_credentials_invalid" :
+        /ciudad de operaci[oó]n|no se encontr[oó].{0,50}ciudad|no existe cobertura/i.test(message) ? "carrier_city_unavailable" :
+        "carrier_quote_unavailable";
+      return reply(502, { ok: false, mode: "read_only", action, error: "upstream_tool_error", reason: cause });
+    }
     return reply(200, { ok: true, mode: "read_only", action, data: scrub(result.response) });
   } catch (error) {
     // Never log token, request bodies, customer information or upstream payloads.
