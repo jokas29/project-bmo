@@ -26,3 +26,15 @@ Deno.test("public health does not disclose credentials or product coverage", asy
   assert(source.includes("if(req.method==='GET'&&u.pathname.endsWith('/diagnostics'))"), "private_diagnostic_missing");
   assert(source.includes("if(!expected||!eq(key,expected))"), "private_key_guard_missing");
 });
+
+
+Deno.test("only B fresh warehouse snapshots can determine shipping origin", async () => {
+  const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
+  assert(source.includes("dropec_private.shipping_verified_origins"), "new_snapshot_table_not_used");
+  assert(source.includes("o.observed_at <= now() and o.valid_until > now()"), "origin_freshness_not_checked");
+  assert(source.includes("Number(row?.choices) !== 1"), "multiple_warehouses_must_be_rejected");
+  assert(!source.includes("public.radar_dropi_products"), "historical_catalog_cannot_be_origin_source");
+  assert(source.includes("freshMatchingQuote(j,context)"), "unsafe_quote_cache_reused");
+  assert(!source.includes("if(s.shipping_quoted_at"), "unbound_shipping_session_cache");
+  assert(source.includes("different_shipping_quote_already_pending"), "mismatched_open_job_might_duplicate");
+});
