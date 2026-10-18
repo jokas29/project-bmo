@@ -80,6 +80,23 @@ def run(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
+def preserve_debug_audio(
+    debug_dir: Path,
+    output: Path,
+    f5_audio: Path,
+    converted_audio: Path,
+) -> None:
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    stem = output.stem
+
+    for source, suffix in (
+        (f5_audio, "01-f5"),
+        (converted_audio, "02-openvoice"),
+        (output, "03-final"),
+    ):
+        shutil.copy2(source, debug_dir / f"{stem}-{suffix}.wav")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Project BMO local TTS pipeline"
@@ -91,6 +108,10 @@ def main() -> int:
         choices=("cheerful", "calm"),
     )
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--debug-dir",
+        help="Optional private directory where intermediate WAV files are preserved.",
+    )
     args = parser.parse_args()
 
     try:
@@ -109,6 +130,7 @@ def main() -> int:
 
         output = Path(args.output).expanduser()
         output.parent.mkdir(parents=True, exist_ok=True)
+        debug_dir = Path(args.debug_dir).expanduser() if args.debug_dir else None
 
         with tempfile.TemporaryDirectory(prefix="bmo-tts-") as temp:
             temp_dir = Path(temp)
@@ -152,6 +174,14 @@ def main() -> int:
                 "pcm_s16le",
                 str(output),
             ])
+
+            if debug_dir is not None:
+                preserve_debug_audio(
+                    debug_dir,
+                    output,
+                    f5_audio,
+                    converted_audio,
+                )
 
         print(output)
         return 0

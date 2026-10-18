@@ -21,6 +21,7 @@ interface ChatUiOptions {
   conversation: ConversationSession;
   characterState: CharacterStateController;
   canSubmit?: () => boolean;
+  onAssistantReply?: (reply: string) => void | Promise<void>;
 }
 
 function userFacingError(error: unknown): string {
@@ -44,6 +45,7 @@ export function createChatUi({
   conversation,
   characterState,
   canSubmit = () => true,
+  onAssistantReply,
 }: ChatUiOptions): ChatUiController {
   let talkingTimer: number | undefined;
   let destroyed = false;
@@ -114,6 +116,13 @@ export function createChatUi({
 
       input.value = "";
       setOutput("assistant", reply);
+
+      if (onAssistantReply) {
+        void Promise.resolve(onAssistantReply(reply)).catch((error: unknown) => {
+          console.warn("BMO TTS callback failed.", error);
+        });
+      }
+
       characterState.setCharacterState("talking");
       const talkingStateRevision =
         characterState.getCharacterStateRevision();
