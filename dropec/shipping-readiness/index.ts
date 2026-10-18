@@ -13,23 +13,23 @@ async function quote(platform:string,senderId:string){const[s]=await sql`select 
 async function pipelineReadiness() {
   const [state] = await sql`
     select
-      coalesce((select worker_enabled from dropec_private.shipping_pipeline_control where singleton=true), false) as worker_enabled,
+      coalesce((select worker_enabled from dropec_private.shipping_pipeline_control where singleton=true),false) as worker_enabled,
       (select worker_heartbeat_at from dropec_private.shipping_pipeline_control where singleton=true) as worker_heartbeat_at,
       (select provider_bridge_verified_at from dropec_private.shipping_pipeline_control where singleton=true) as provider_bridge_verified_at,
-      coalesce((select enabled from dropec_private.bot_woo_config where singleton=true), false) as woo_enabled,
-      coalesce((select webhook_secret_id is not null from dropec_private.bot_woo_config where singleton=true), false) as woo_webhook_signature_ready,
+      coalesce((select enabled from dropec_private.bot_woo_config where singleton=true),false) as woo_enabled,
+      coalesce((select webhook_secret_id is not null from dropec_private.bot_woo_config where singleton=true),false) as woo_webhook_signature_ready,
       exists(select 1 from vault.secrets where name='dropec_bot_internal_key') as internal_key_ready,
       (select count(*)::int from dropec_private.bot_woo_catalog_products where dropi_product_id is not null) as linked_products,
       (select count(*)::int
-         from dropec_private.bot_woo_catalog_products c
-         join public.radar_dropi_products p on p.product_id=c.dropi_product_id
-        where c.dropi_product_id is not null and exists (
+        from dropec_private.bot_woo_catalog_products c
+        join public.radar_dropi_products p on p.product_id=c.dropi_product_id
+        where c.dropi_product_id is not null and exists(
           select 1 from jsonb_array_elements(
             case when jsonb_typeof(p.raw->'warehouse_product')='array'
               then p.raw->'warehouse_product' else '[]'::jsonb end
           ) as w
           where w->'warehouse'->'city'->>'cod_dane' is not null
-            and case when (w->>'stock') ~ '^[0-9]+{try{const u=new URL(req.url);if(req.method==='GET'&&u.pathname.endsWith('/health')){const readiness=await pipelineReadiness();return json({service:'dropec-shipping-quote',status:readiness.status,quote_processing_ready:readiness.quote_processing_ready,blockers:readiness.blockers,coverage:readiness.coverage,pending:readiness.pending_jobs,mode:'disabled_until_processor_verified'})}if(req.method!=='POST')return new Response('Method Not Allowed',{status:405,headers:SAFE});const key=req.headers.get('x-dropec-internal')||'',expected=await internalKey();if(!expected||!eq(key,expected))return new Response('Unauthorized',{status:401,headers:SAFE});const readiness=await pipelineReadiness();if(!readiness.quote_processing_ready)return json({ok:false,error:'shipping_pipeline_unavailable',blockers:readiness.blockers},503);const b=await req.json().catch(()=>({})) as any;return json(await quote(clean(b.platform||'instagram',30),clean(b.sender_id,120)))}catch(e){return json({ok:false,error:e instanceof Error?e.message:'temporary_failure'},503)}});
+            and case when (w->>'stock') ~ '^[0-9]+$'
               then (w->>'stock')::numeric > 0 else false end
         )
       ) as products_with_valid_origin,
@@ -50,4 +50,4 @@ async function pipelineReadiness() {
   return assessShipping(status);
 }
 
-Deno.serve(async req=>{try{const u=new URL(req.url);if(req.method==='GET'&&u.pathname.endsWith('/health')){const[q]=await sql`select count(*)::int n from dropec_private.bot_shipping_quote_jobs where status in ('queued','processing')`;return json({service:'dropec-shipping-quote',status:'ok',mode:'github_browser_queue',origin_source:'radar_dropi_products',pending:q?.n||0})}if(req.method!=='POST')return new Response('Method Not Allowed',{status:405,headers:SAFE});const key=req.headers.get('x-dropec-internal')||'',expected=await internalKey();if(!expected||!eq(key,expected))return new Response('Unauthorized',{status:401,headers:SAFE});const b=await req.json().catch(()=>({})) as any;return json(await quote(clean(b.platform||'instagram',30),clean(b.sender_id,120)))}catch(e){return json({ok:false,error:e instanceof Error?e.message:'temporary_failure'},503)}});
+Deno.serve(async req=>{try{const u=new URL(req.url);if(req.method==='GET'&&u.pathname.endsWith('/health')){const readiness=await pipelineReadiness();return json({service:'dropec-shipping-quote',status:readiness.status,quote_processing_ready:readiness.quote_processing_ready,blockers:readiness.blockers,coverage:readiness.coverage,pending:readiness.pending_jobs,mode:'disabled_until_processor_verified'})}if(req.method!=='POST')return new Response('Method Not Allowed',{status:405,headers:SAFE});const key=req.headers.get('x-dropec-internal')||'',expected=await internalKey();if(!expected||!eq(key,expected))return new Response('Unauthorized',{status:401,headers:SAFE});const readiness=await pipelineReadiness();if(!readiness.quote_processing_ready)return json({ok:false,error:'shipping_pipeline_unavailable',blockers:readiness.blockers},503);const b=await req.json().catch(()=>({})) as any;return json(await quote(clean(b.platform||'instagram',30),clean(b.sender_id,120)))}catch(e){return json({ok:false,error:e instanceof Error?e.message:'temporary_failure'},503)}});
