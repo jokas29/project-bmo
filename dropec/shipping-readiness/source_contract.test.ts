@@ -13,7 +13,7 @@ Deno.test("the deployed HTTP handler is unique, executable and never falsely rep
   assert(!source.includes("mode:'github_browser_queue'"), "legacy_health_survived");
   assert(source.includes("status:readiness.status"), "health_not_using_guard");
   assert(source.includes("if(!readiness.quote_processing_ready)"), "queued_when_worker_not_ready");
-  assert(source.includes("~ '^[0-9]+$'"), "stock_regex_corrupted");
+  assert(source.includes("o.stock_available >= ${quantity}"), "stock_validation_missing");
   assert(source.indexOf("const readiness=await pipelineReadiness();if(!readiness.quote_processing_ready)") > source.indexOf("Deno.serve("), "post_gate_not_in_handler");
 });
 
