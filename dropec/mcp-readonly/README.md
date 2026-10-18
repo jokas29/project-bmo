@@ -1,4 +1,4 @@
-# DropEC — Dropi MCP, solo lectura (NO desplegado)
+# DropEC — Dropi MCP, solo lectura (desplegado en B, OAuth pendiente)
 
 ## Implementaremos únicamente dos mejoras
 
@@ -11,9 +11,9 @@ Fuente: manual oficial *Conectar tu Agente de IA con el MCP de Dropi*, página 5
 
 ## Estado
 
-Código experimental aislado en rama de GitHub; **todavía no conectado a Dropi ni desplegado**. El PDF explica OAuth interactivo para asistentes, pero no documenta un token de servidor para DropEC ni cómo renovarlo. **No** reutilizar la sesión de Claude/ChatGPT ni publicar tokens. Es necesario verificar cómo autorizar legal y técnicamente un cliente de backend propio.
+Código experimental aislado en rama de GitHub. La Edge Function ya está desplegada en Supabase B, con verify_jwt=true, pero desactivada y NO conectada a Dropi. El PDF explica OAuth interactivo para asistentes, pero no documenta un token de servidor para DropEC ni cómo renovarlo. **No** reutilizar la sesión de Claude/ChatGPT ni publicar tokens. Es necesario verificar cómo autorizar legal y técnicamente un cliente de backend propio.
 
-El conector Supabase actual solo permite acceder al proyecto A; B (ubxkqbnzdtgfvphwohzm) rechaza la conexión. **No desplegar en A.**
+Supabase B (ubxkqbnzdtgfvphwohzm) ya es accesible mediante su cuenta conectada. La función dropec-dropi-mcp-readonly v1 está desplegada en B, con JWT obligatorio y sin OAuth activo. No desplegar en A.
 
 ## Protección
 
@@ -75,3 +75,31 @@ Se consultaron únicamente metadatos públicos, sin contraseñas, tokens ni crea
 La página oficial actual de Dropi (https://dropi.co/br/mcp-claude) declara compatibilidad con **Ecuador** y advierte que solo se permite una sesión activa por cuenta. Un backend de DropEC puede competir con otra sesión de usuario; consultar a Dropi si el uso server-to-server está contemplado antes de vincularlo.
 
 En esta prueba no hubo llamadas `tools/call`, cotizaciones reales, consulta de órdenes ni cargo a wallet; los controles globales de DropEC permanecen apagados.
+
+
+## Cotización de Claude Free con MCP Dropi — 2026-10-17
+
+Resultado reportado por el usuario tras autorizar el MCP en Claude: 11 herramientas, sin ejecutar create_order. Esa sesión de Claude NO autentica Supabase B.
+
+Producto: MAQUINA DE AJO ELECTRICA; Dropi 3481; SKU A9; producto SIMPLE inferido de variations vacío; cantidad 1; precio declarado 25 (moneda supuesta USD).
+Destino devuelto por MCP: BABAHOYO id 700, departamento 42, DANE 201001013001, zip 8. Origen no especificable en quote_shipping; Dropi lo resuelve internamente.
+
+| Carrier | MCP sin recaudo | MCP con recaudo | Error |
+| --- | ---: | ---: | --- |
+| LAARCOURIER | 5.1175 | 6.555 | ninguno |
+| SERVIENTREGA | 5.16925 | 6.89425 | ninguno |
+| URBANO | no cotiza | no cotiza | TCC: Tienes que indicar la Linea (linea) |
+| GINTRACOM | no cotiza | no cotiza | No existe cobertura: Credenciales inválidas |
+| VELOCES | no cotiza | no cotiza | ciudad operativa no encontrada, código 9902 |
+
+Referencia anterior guardada en Supabase A (2026-10-06): Woo product 29, valor 25, cantidad 1, SIN RECAUDO, origen QUITO id 802 DANE 201001001001, destino DANE **201001013013** (diferente de MCP). Tarifas: URBANO 4.5195, LAARCOURIER 5.6465, GINTRACOM 5.6695, SERVIENTREGA 6.60675.
+
+Requisitos para incorporar MCP:
+1. NO presentar tarifas como comparables hasta conciliar origen, DANE del destino, valor y modalidad SIN/CON RECAUDO.
+2. NO elegir automáticamente un transportista sustituto cuando URBANO devuelva error; devolver estado claro de fallo y diagnóstico.
+3. NO confundir costo de transporte con mínimo de saldo de wallet (error histórico 5.952), ni volver a intentar Woo order #63.
+4. Falta conocer el inputSchema exacto de quote_shipping y get_order, validar codificación de ciudades y autenticación independiente de B.
+5. Si la respuesta MCP tools/call tiene isError=true, tratarla como error, nunca como cotización exitosa.
+6. No modificar credenciales de transportadoras por una hipótesis.
+
+Sin pedidos nuevos, sin cobros, sin gasto de saldo y sin abrir ventas. El código B continúa desactivado en espera de autorización válida.
