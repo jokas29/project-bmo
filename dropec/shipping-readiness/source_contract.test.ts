@@ -8,7 +8,7 @@ Deno.test("the deployed HTTP handler is unique, executable and never falsely rep
   const source = await Deno.readTextFile(new URL("./index.ts", import.meta.url));
   const count = (needle: string) => source.split(needle).length - 1;
   assert(count("Deno.serve(") === 1, "duplicated_http_handler");
-  assert(count("pipelineReadiness()") === 3, "missing_health_or_post_gate");
+  assert(count("pipelineReadiness()") === 4, "missing_health_or_post_gate");
   assert(!source.includes("status:'ok'"), "legacy_false_positive_health");
   assert(!source.includes("mode:'github_browser_queue'"), "legacy_health_survived");
   assert(source.includes("status:readiness.status"), "health_not_using_guard");
