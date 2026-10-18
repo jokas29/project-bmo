@@ -7,6 +7,7 @@ on:
     paths:
       - 'dropec/shipping-readiness/**'
       - '.github/workflows/dropec-shipping-readiness-tests.yml'
+      - '.github/workflows/dropec-shipping-preflight-b.yml'
   workflow_dispatch:
 
 permissions:
