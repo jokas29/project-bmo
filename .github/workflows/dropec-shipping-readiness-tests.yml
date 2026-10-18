@@ -22,6 +22,6 @@ jobs:
         with:
           deno-version: v2.x
       - name: Test fail-closed shipping state transitions (no network or credentials)
-        run: deno test --allow-read=dropec/shipping-readiness/index.ts dropec/shipping-readiness/guard.test.ts dropec/shipping-readiness/source_contract.test.ts dropec/shipping-readiness/quote_policy.test.ts
+        run: deno test --allow-read=dropec/shipping-readiness,.github/workflows/dropec-shipping-preflight-b.yml dropec/shipping-readiness/guard.test.ts dropec/shipping-readiness/source_contract.test.ts dropec/shipping-readiness/quote_policy.test.ts dropec/shipping-readiness/bridge_claims.test.ts dropec/shipping-readiness/preflight_source.test.ts
       - name: Typecheck shipping endpoint
-        run: deno check dropec/shipping-readiness/index.ts
+        run: deno check dropec/shipping-readiness/index.ts dropec/shipping-readiness/preflight_index.ts
