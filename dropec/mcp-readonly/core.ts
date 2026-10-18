@@ -1,4 +1,5 @@
 import { validateToolInput } from "./validate.ts";
+import { safeOrderSummary } from "./privacy.ts";
 
 // DropEC / Dropi MCP: deliberately read-only transport.
 // Endpoint and tool names are NOT user-controlled. This module never calls Create Order.
@@ -200,6 +201,10 @@ export async function handler(req: Request, env: Settings, fetcher: Fetcher = fe
         "carrier_quote_unavailable";
       return reply(502, { ok: false, mode: "read_only", action, error: "upstream_tool_error", reason: cause });
     }
+    if (action === "get-order") return reply(200, {
+      ok: true, mode: "read_only", action,
+      summary: safeOrderSummary(result.response)
+    });
     return reply(200, { ok: true, mode: "read_only", action, data: scrub(result.response) });
   } catch (error) {
     // Never log token, request bodies, customer information or upstream payloads.
