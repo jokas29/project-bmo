@@ -9,7 +9,7 @@ import postgres from "npm:postgres@3.4.7";
 import {
   OAUTH, nonce, sha256Base64Url, validateMetadata, redirectUriForB,
   registrationRequest, validateRegistration, authorizationUrl,
-  tokenRequest, validateToken, isObject
+  tokenRequest, validateToken
 } from "./oauth_protocol.ts";
 
 const DATABASE_URL = Deno.env.get("SUPABASE_DB_URL");
@@ -212,7 +212,7 @@ async function callback(req: Request): Promise<Response> {
 
   await persist({ ...tokens, clientId: String(pending.client_id) });
   // Cleanup removes only this expended verifier, never access/refresh tokens.
-  await sql`delete from vault.secrets where id=${pending.verifier_secret_id}`;
+  try { await sql`delete from vault.secrets where id=${pending.verifier_secret_id}`; } catch { /* Expired/consumed row still prevents replay. */ }
   return safePage(true);
 }
 async function status(req: Request): Promise<Response> {
@@ -237,8 +237,9 @@ async function status(req: Request): Promise<Response> {
 Deno.serve(async req => {
   try {
     const url = new URL(req.url);
-    const prefix = "/functions/v1/dropec-dropi-oauth";
-    const path = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : "";
+    const prefixes = ["/functions/v1/dropec-dropi-oauth", "/dropec-dropi-oauth"];
+    const prefix = prefixes.find(p => url.pathname === p || url.pathname.startsWith(p + "/"));
+    const path = prefix ? url.pathname.slice(prefix.length) : "";
     if (req.method === "GET" && path === "/callback") return await callback(req);
     if (req.method === "GET" && path === "/status") return await status(req);
     if (req.method === "POST" && path === "/start") return await start(req);
