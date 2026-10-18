@@ -103,3 +103,48 @@ Requisitos para incorporar MCP:
 6. No modificar credenciales de transportadoras por una hipótesis.
 
 Sin pedidos nuevos, sin cobros, sin gasto de saldo y sin abrir ventas. El código B continúa desactivado en espera de autorización válida.
+
+## Contrato exacto de herramientas informado por Claude (2026-10-17)
+
+Los siguientes nombres/campos fueron extraídos de las definiciones disponibles en la sesión OAuth del usuario con Claude; **no los obtuvimos directamente desde una sesión OAuth de Supabase B**. Por seguridad se agregaron validaciones locales explícitas, incluso mientras la función sigue deshabilitada.
+
+### quote_shipping (solo lectura)
+
+Campos requeridos (JSON): cash_on_delivery (boolean; **false = SIN RECAUDO**, true = CON RECAUDO), destination_city (objeto), products (array). Opcionales: direction, neighborhood, zip_code (string o null). No se aceptan campos no declarados.
+
+destination_city requiere **id integer**, **dane_code string** y **zip_code string|null**. Los tres se copian de search_cities, no se deben inventar.
+
+products: 1 o más objetos con id integer, type (SIMPLE/VARIABLE/COMBO), quantity integer>=1, price number>0, variation_id integer|null condicional. Los productos VARIABLES requieren variation_id válido; SIMPLE y COMBO permiten omitirlo o usar null. El precio unitario debe haber sido confirmado antes de llamar al adaptador, nunca derivarse ciegamente de suggested_price.
+
+Dropi publica products como array|null pero exige al menos un elemento; el adaptador **rechaza null** por coherencia y seguridad. Limita a 20 productos y longitudes de texto defensivas.
+
+Ejemplo de diagnóstico (NO ejecutar automáticamente):
+
+    {
+      "cash_on_delivery": false,
+      "destination_city": {"id":700,"dane_code":"201001013001","zip_code":"8"},
+      "products":[{"id":3481,"type":"SIMPLE","quantity":1,"price":25}]
+    }
+
+El ejemplo refleja los datos que Claude obtuvo para Babahoyo; antes de producir precios cobrables validar el DANE y el origen efectivo de Dropi. **No existe un campo de transportadora ni de origen en quote_shipping.** La herramienta devuelve cotizaciones de varias transportadoras.
+
+### get_order (solo lectura)
+
+El único campo aceptado es id (string no vacío, por ejemplo ORD-2025-0001). La respuesta puede contener nombre, teléfono, dirección, productos y otros datos personales. No registrar el payload íntegro ni exponerlo en la tienda pública. No confundir el ID de Dropi con el ID WooCommerce del pedido histórico #63.
+
+### Diferencias críticas para evitar errores
+
+- quote_shipping usa **cash_on_delivery:boolean**; create_order usa rate_type string. No enviar rate_type a quote_shipping ni permitir create_order.
+- Las respuestas por transportadora pueden incluir carrier, service, shipping_cost, insurance, trajectory y error; el MCP no declaró un JSON Schema formal de respuesta. El adaptador no presume una forma específica de éxito. Hay que interpretar y verificar cada resultado antes de mostrar precios al cliente.
+- Para isError=true a nivel de herramienta MCP, el adaptador devuelve error 502 tipado en lugar de éxito.
+- Los tipos SIMPLE, VARIABLE y COMBO se conocen por la descripción, no por un enum formal del esquema remoto.
+- Las pruebas automatizadas son simuladas; todavía falta validar el contrato con acceso OAuth propio desde Supabase B.
+
+### Próximos pasos
+
+1. Ejecutar las pruebas locales de validate.ts y core.test.ts.
+2. Diseñar OAuth propio y verificar issuer con Dropi; no copiar la sesión de Claude.
+3. Verificar el JSON Schema vivo desde B, cotejar campos y permisos.
+4. Actualizar y redesplegar la función de B **solo cuando pase pruebas**; mantener deshabilitado el gate OAuth.
+5. Probar cotización en modo consulta sin recaudo y con ciudad válida; comparar sin asumir que Quito sea el origen MCP.
+6. Integrar como fallback solo después de confirmar resultados y privacidad.
