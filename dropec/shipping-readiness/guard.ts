@@ -16,6 +16,7 @@ export type ShippingStatus = {
   status: "ready" | "blocked";
   quote_processing_ready: boolean;
   blockers: string[];
+  warnings: string[];
   coverage: { linked_products: number; products_with_valid_origin: number; missing_origin: number };
   pending_jobs: number;
 };
@@ -26,6 +27,7 @@ const recent = (value: string | null, minutes: number, now: Date) => {
 };
 export function assessShipping(snapshot: ShippingSnapshot, now = new Date()): ShippingStatus {
   const blockers: string[] = [];
+  const warnings: string[] = [];
   if (!snapshot.worker_enabled) blockers.push("shipping_worker_disabled");
   if (!recent(snapshot.worker_heartbeat_at, 15, now)) blockers.push("worker_heartbeat_missing_or_stale");
   if (!recent(snapshot.provider_bridge_verified_at, 24 * 60, now)) blockers.push("provider_bridge_not_verified_recently");
@@ -36,11 +38,15 @@ export function assessShipping(snapshot: ShippingSnapshot, now = new Date()): Sh
   const withOrigin = Math.max(0, Math.min(linked, snapshot.products_with_valid_origin));
   if (linked === 0) blockers.push("product_mapping_empty");
   if (withOrigin === 0) blockers.push("origin_catalog_empty");
-  if (withOrigin < linked) blockers.push("origin_coverage_incomplete");
+  // A selected product must be verified individually. Missing stock/origins for
+  // unrelated catalog products should not block diagnostic quotations of an
+  // otherwise-ready product.
+  if (withOrigin < linked) warnings.push("origin_coverage_incomplete");
   return {
     status: blockers.length === 0 ? "ready" : "blocked",
     quote_processing_ready: blockers.length === 0,
     blockers,
+    warnings,
     coverage: {
       linked_products: linked,
       products_with_valid_origin: withOrigin,
