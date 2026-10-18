@@ -1,20 +1,15 @@
-import { handler, type Settings } from "./core.ts";
+import { handler } from "./core.ts";
+import { runtimeSettings } from "./runtime.ts";
 
-// Supabase Edge Function entrypoint. Deploy to B only after OAuth is configured.
-// IMPORTANT: verify_jwt=true in Supabase function settings. Additionally enforce
-// the separate internal key below; never call this from the storefront/browser.
-const env: Settings = {
-  DROPEC_MCP_INTERNAL_KEY: Deno.env.get("DROPEC_MCP_INTERNAL_KEY"),
-  DROPI_MCP_ACCESS_TOKEN: Deno.env.get("DROPI_MCP_ACCESS_TOKEN"),
-  DROPI_MCP_READONLY_ENABLED: Deno.env.get("DROPI_MCP_READONLY_ENABLED"),
-  DROPI_MCP_QUOTE_TOOL: Deno.env.get("DROPI_MCP_QUOTE_TOOL"),
-  DROPI_MCP_GET_ORDER_TOOL: Deno.env.get("DROPI_MCP_GET_ORDER_TOOL"),
-};
-
-Deno.serve((req) => {
-  // Supabase prefixes paths with /functions/v1/<function-name>.
-  const lastSegment = new URL(req.url).pathname.split("/").filter(Boolean).pop() || "";
+// Supabase B only: credentials come from private Vault, never from user input.
+// Both the OAuth handshake and read-only calls default to OFF in DB.
+// JWT verification remains enabled for this endpoint.
+Deno.serve(async (req) => {
+  const env = await runtimeSettings();
   const url = new URL(req.url);
-  url.pathname = "/" + lastSegment;
-  return handler(new Request(url, req), env);
+  // Normalize both Supabase Edge request-path layouts.
+  const prefix = ["/functions/v1/dropec-dropi-mcp-readonly", "/dropec-dropi-mcp-readonly"]
+    .find((p) => url.pathname === p || url.pathname.startsWith(p + "/"));
+  url.pathname = prefix ? url.pathname.slice(prefix.length) || "/" : "/unrecognized";
+  return await handler(new Request(url, req), env);
 });
