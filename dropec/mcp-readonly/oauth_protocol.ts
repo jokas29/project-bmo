@@ -147,7 +147,7 @@ export function validateRefreshedToken(data: unknown, previousRefresh: string): 
         typeof data.refresh_token !== "string" || data.refresh_token.length < 20
       ))) return null;
   const scope = typeof data.scope === "string" ? data.scope : OAUTH.scope;
-  if (scope.split(/\\s+/).some(s => s !== "mcp")) return null;
+  if (scope.split(/\s+/).some(s => s !== "mcp")) return null;
   return {
     accessToken: data.access_token,
     refreshToken: typeof data.refresh_token === "string" ? data.refresh_token : previousRefresh,
