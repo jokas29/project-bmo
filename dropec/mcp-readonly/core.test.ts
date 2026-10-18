@@ -20,7 +20,7 @@ function request(route: string, options: { method?: string; input?: unknown; key
     body: method === "POST" ? JSON.stringify({ input: options.input ?? {} }) : undefined
   });
 }
-function mockMcp(tools: unknown[], seen: string[]): typeof fetch {
+function mockMcp(tools: unknown[], seen: string[], callResult?: unknown): typeof fetch {
   const fn = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const msg = JSON.parse(String(init?.body)) as { method: string; id?: number; params?: { name?: string } };
     seen.push(msg.method + (msg.params?.name ? ":" + msg.params.name : ""));
@@ -29,7 +29,7 @@ function mockMcp(tools: unknown[], seen: string[]): typeof fetch {
       jsonrpc: "2.0", id: msg.id,
       result: msg.method === "initialize" ? { protocolVersion: "2025-03-26", capabilities: {} }
         : msg.method === "tools/list" ? { tools }
-        : { content: [{ type: "text", text: "Shipping 4.52; contact person@example.com +593987654321" }] }
+        : (callResult ?? { content: [{ type: "text", text: "Shipping 4.52; contact person@example.com +593987654321" }] })
     };
     return new Response(JSON.stringify(response), { status: 200, headers: {
       "content-type": "application/json", "mcp-session-id": "test-session"
@@ -82,4 +82,39 @@ Deno.test("discovery cannot send tools/call or return write tools", async () => 
   const data = await resp.json();
   assertEquals(data.tools.map((t: { name: string }) => t.name), ["quote_shipping", "get_order"]);
   assertEquals(calls.some((c) => c.startsWith("tools/call")), false);
+});
+
+Deno.test("carrier tool errors are not recorded as successful prices", async () => {
+  const calls: string[] = [];
+  const result = await handler(
+    request("/quote", { input: { cash_on_delivery: false } }),
+    env,
+    mockMcp(
+      [{ name: "quote_shipping", annotations: { readOnlyHint: true } }],
+      calls,
+      { isError: true, content: [{ type: "text", text: "TCC: Tienes que indicar la Linea (linea)" }] }
+    )
+  );
+  assertEquals(result.status, 502);
+  const body = await result.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.reason, "carrier_line_required");
+  assertEquals(body.error, "upstream_tool_error");
+  assert(!JSON.stringify(body).includes("Tienes que indicar"));
+  assertEquals(calls.filter((v) => v === "tools/call:quote_shipping").length, 1);
+});
+
+Deno.test("MCP credentials error is typed but source text stays private", async () => {
+  const result = await handler(
+    request("/quote", { input: { cash_on_delivery: true } }),
+    env,
+    mockMcp(
+      [{ name: "quote_shipping" }],
+      [],
+      { isError: true, content: [{ type: "text", text: "No existe cobertura: Credenciales inválidas" }] }
+    )
+  );
+  assertEquals(result.status, 502);
+  const body = await result.json();
+  assertEquals(body.reason, "carrier_credentials_invalid");
 });
