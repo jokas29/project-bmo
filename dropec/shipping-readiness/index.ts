@@ -63,7 +63,7 @@ async function quote(platform: string, senderId: string) {
   const shipping=freshMatchingQuote(j,context);
   if (shipping!==null) {
     const total=productAmount+shipping;
-    await sql`
+    const updated=await sql`
       update dropec_private.bot_checkout_sessions
       set shipping_amount=${shipping}, total_amount=${total},
           shipping_quoted_at=now(), shipping_quote_source='dropi_v2',
@@ -72,7 +72,9 @@ async function quote(platform: string, senderId: string) {
         and woo_product_id=${Number(s.woo_product_id)}
         and unit_price=${Number(s.unit_price)} and quantity=${qty}
         and city=${String(s.city)} and province=${String(s.province)}
+      returning platform
     `;
+    if (!updated.length) return {ok:false,error:"checkout_changed_before_quote_application"};
     return {ok:true,shipping_amount:shipping,total_amount:total,carrier:j?.carrier||null};
   }
   if (j?.status==='queued'||j?.status==='processing') {
