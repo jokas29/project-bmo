@@ -1,8 +1,7 @@
 // DropEC -> Dropi OAuth 2.1: trusted, fixed metadata + PKCE helpers.
 // This file contains NO credentials and never issues Dropi orders.
-// The resource metadata's /bff alias differs from its issuer. We do NOT
-// silently normalize issuers; operators must explicitly approve the pinned
-// ROOT issuer after reviewing verified metadata.
+// The provider currently advertises /bff but publishes a root issuer.
+// OAuth must fail closed until authorization_servers and issuer match exactly.
 export const OAUTH = Object.freeze({
   resource: "https://mcp.dropi.co/mcp",
   resourceMetadata: "https://mcp.dropi.co/.well-known/oauth-protected-resource/mcp",
@@ -33,12 +32,14 @@ export async function sha256Base64Url(value: string): Promise<string> {
 }
 export function validateMetadata(resource: unknown, issuer: unknown): boolean {
   if (!isObject(resource) || !isObject(issuer)) return false;
-  // Precondition: root issuer was pinned manually and is independent of
-  // the /bff path advertised by Dropi's protected resource metadata.
+  // RFC 9728: authorization_servers contains issuer identifiers, not
+  // aliases to independently selected OAuth servers. A caller's approval
+  // cannot override a mismatch. Keep OAuth start disabled until Dropi
+  // advertises the exact issuer that its metadata asserts.
   return resource.resource === OAUTH.resource &&
     Array.isArray(resource.authorization_servers) &&
     resource.authorization_servers.length === 1 &&
-    resource.authorization_servers[0] === OAUTH.advertisedServer &&
+    resource.authorization_servers[0] === OAUTH.issuer &&
     issuer.issuer === OAUTH.issuer &&
     issuer.authorization_endpoint === OAUTH.authorization &&
     issuer.token_endpoint === OAUTH.token &&
