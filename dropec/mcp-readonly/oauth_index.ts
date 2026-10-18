@@ -180,6 +180,15 @@ async function callback(req: Request): Promise<Response> {
   if (!/^[a-zA-Z0-9_-]{64}$/.test(state) ||
       !code || code.length > 2048) return safePage(false);
 
+  // A setup may be revoked while the user is still on Dropi's consent page.
+  // Never exchange/store credentials after any operator gate is switched off.
+  const [stillAllowed] = await sql`
+    select setup_enabled, pinned_issuer_approved, session_replacement_ack
+    from dropec_private.dropi_mcp_oauth_settings where singleton=true`;
+  if (!stillAllowed?.setup_enabled ||
+      !stillAllowed?.pinned_issuer_approved ||
+      !stillAllowed?.session_replacement_ack) return safePage(false);
+
   // The state is single-use regardless of whether the provider subsequently
   // accepts the code. Never retry an OAuth authorization code automatically.
   const stateHash = await sha256Base64Url(state);
