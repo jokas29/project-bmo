@@ -24,3 +24,5 @@ jobs:
           deno-version: v2.x
       - name: Offline tests — no Dropi tokens, credentials, or network permissions
         run: deno test dropec/mcp-readonly/core.test.ts dropec/mcp-readonly/oauth_protocol.test.ts
+      - name: Typecheck OAuth callback (no invocation, no provider credentials)
+        run: deno check dropec/mcp-readonly/oauth_index.ts
