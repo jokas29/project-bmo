@@ -1,6 +1,6 @@
 // Draft ONLY: Supabase B shipping worker broker. NEVER deploy until reviewed.
 // POST /claim and /complete are doubly gated: an explicit deployment-only release
-// switch and B's fail-closed worker/heartbeat/provider/Woo config. No Dropi,
+// switch and B's fail-closed worker/heartbeat/provider checks. No Dropi,
 // WordPress, Woo order, payment, cron, /wake or Supabase A calls occur here.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import postgres from "npm:postgres@3.4.7";
@@ -10,6 +10,12 @@ import { WORKER_B, validWorkerClaims, shippingAssignment,
 import { serializeQuoteRequest, signQuoteBody } from "./wordpress_quote_bridge.ts";
 
 const RELEASED = Deno.env.get("DROPEC_B_SHIPPING_WORKER_RELEASE") === "operator_approved_quote_only_v1";
+// Dedicated quote-only HMAC value entered in Supabase B > Edge Function Secrets.
+ // NEVER use the WooCommerce webhook signing secret or a Supabase A secret here.
+const QUOTE_ONLY_SECRET = Deno.env.get("DROPEC_SHIPPING_QUOTE_SECRET") ?? "";
+const QUOTE_ONLY_SECRET_READY = QUOTE_ONLY_SECRET.length >= 48 &&
+  QUOTE_ONLY_SECRET.length <= 512 &&
+  QUOTE_ONLY_SECRET !== "TU_CLAVE_GENERADA";
 const CONNECTION = Deno.env.get("SUPABASE_DB_URL");
 const sql = CONNECTION ? postgres(CONNECTION, {
   max: 2, prepare: false, ssl: { rejectUnauthorized: true },
@@ -49,14 +55,13 @@ async function readiness() {
       coalesce((select worker_enabled from dropec_private.shipping_pipeline_control where singleton=true),false) as worker_enabled,
       (select worker_heartbeat_at from dropec_private.shipping_pipeline_control where singleton=true) as heartbeat,
       (select provider_bridge_verified_at from dropec_private.shipping_pipeline_control where singleton=true) as provider_verified,
-      coalesce((select enabled from dropec_private.bot_woo_config where singleton=true),false) as woo_enabled,
-      coalesce((select webhook_secret_id is not null from dropec_private.bot_woo_config where singleton=true),false) as woo_signed,
-      exists(select 1 from vault.secrets where name='dropec_bot_internal_key') as internal_key
+      (select count(*) from dropec_private.bot_woo_catalog_products
+         where dropi_product_id is not null and approved=true and woo_status='publish') as approved_linked_products
   `;
   const current=Date.now(), heartbeat= r?.heartbeat ? new Date(r.heartbeat).getTime() : NaN;
   const verified= r?.provider_verified ? new Date(r.provider_verified).getTime() : NaN;
-  return r?.worker_enabled===true && r?.woo_enabled===true &&
-    r?.woo_signed===true && r?.internal_key===true &&
+  return QUOTE_ONLY_SECRET_READY && r?.worker_enabled===true &&
+    Number(r?.approved_linked_products ?? 0)>0 &&
     current-heartbeat>=0 && current-heartbeat<=15*60_000 &&
     current-verified>=0 && current-verified<=24*60*60_000;
 }
@@ -98,16 +103,11 @@ async function claim(runId: string) {
       let assignment;
       try { assignment=shippingAssignment(job,checkout,product,origins,dest||null); }
       catch { return deny("quote_context_unverified"); }
-      const [key]=await tx`
-        select v.decrypted_secret
-        from dropec_private.bot_woo_config c
-        join vault.decrypted_secrets v on v.id=c.webhook_secret_id
-        where c.singleton=true and c.enabled=true limit 1
-      `;
-      if (!key?.decrypted_secret) return deny("signing_secret_not_available");
-      // Never export the Vault secret; export only the HMAC for this exact request.
+      // Sign only the locked quote payload with a dedicated B Edge Secret.
+      // Never emit or return the secret; only the request HMAC is exported.
+      if (!QUOTE_ONLY_SECRET_READY) return deny("quote_signing_secret_unavailable");
       const raw=serializeQuoteRequest(assignment.expected);
-      const signature=await signQuoteBody(raw,String(key.decrypted_secret));
+      const signature=await signQuoteBody(raw,QUOTE_ONLY_SECRET);
       const nonce=crypto.randomUUID()+crypto.randomUUID();
       const tokenHash=await hashToken(nonce);
       const [leased]=await tx`
