@@ -12,6 +12,9 @@ Deno.test("B broker is locked by default and separate from orders and providers"
   has(source,/shipping_worker_b_leases/, "missing unique lease");
   has(source,/equalHash\(lease.token_sha256,tokenHash\)/, "missing lease validation");
   has(source,/checkout_version/, "missing version pin");
+  has(source,/updated_at::text as checkout_version/, "checkout timestamp must keep microseconds");
+  has(source,/checkout_version::text as checkout_version_raw/, "lease timestamp must keep microseconds");
+  has(source,/assignment.checkout_version!==lease.checkout_version_raw/, "lease must match byte-exact timestamp");
   has(source,/shippingAssignment\(/, "must re-check context before applying amount");
   has(source,/verifyWorkerQuote\(/, "must verify provider quote before commit");
   has(source,/payment_intent_id is null/, "must not finalize paid checkout");
