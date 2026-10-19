@@ -74,7 +74,7 @@ async function claim(runId: string) {
       `;
       if(!job) return output(200,{ok:true,job:null});
       const [checkout]=await tx`
-        select * from dropec_private.bot_checkout_sessions
+        select *, updated_at::text as checkout_version from dropec_private.bot_checkout_sessions
         where platform=${job.platform} and sender_id=${job.sender_id}
         for update
       `;
@@ -152,7 +152,7 @@ async function complete(runId: string, body: unknown) {
         where id=${id}::uuid for update
       `;
       const [lease]=await tx`
-        select * from dropec_private.shipping_worker_b_leases where job_id=${id}::uuid
+        select *, checkout_version::text as checkout_version_raw from dropec_private.shipping_worker_b_leases where job_id=${id}::uuid
       `;
       if(!job||!lease || lease.github_run_id!==runId ||
           !equalHash(lease.token_sha256,tokenHash) ||
@@ -165,7 +165,7 @@ async function complete(runId: string, body: unknown) {
         return deny("expired_or_inactive_lease",409);
       }
       const [checkout]=await tx`
-        select * from dropec_private.bot_checkout_sessions
+        select *, updated_at::text as checkout_version from dropec_private.bot_checkout_sessions
         where platform=${job.platform} and sender_id=${job.sender_id} for update
       `;
       const [product]=await tx`
@@ -186,7 +186,7 @@ async function complete(runId: string, body: unknown) {
       let assignment;
       try { assignment=shippingAssignment(job,checkout,product,origins,dest||null); }
       catch { return deny("quote_context_unverified"); }
-      if(assignment.checkout_version!==new Date(lease.checkout_version).toISOString())
+      if(assignment.checkout_version!==lease.checkout_version_raw)
         return deny("checkout_changed_during_quote",409);
       if(b.ok!==true) {
         // Safe retry. Never store a raw provider response, stack trace or token.
