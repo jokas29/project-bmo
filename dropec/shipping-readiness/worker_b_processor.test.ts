@@ -82,3 +82,26 @@ Deno.test("bad B lease or altered payload never reaches WordPress",async()=>{
   }catch(e){chk((e as Error).message==="noncanonical_claim_payload")}
   chk(calls===0);
 });
+
+Deno.test("ByetHost HTTP 200 HTML browser challenge is never mistaken for a shipping quote",async()=>{
+  let providerCalls=0;
+  let completed:Record<string,unknown>|undefined;
+  const broker=async(uri:RequestInfo|URL,init?:RequestInit)=>{
+    if(String(uri).endsWith("/claim"))return Response.json({ok:true,job});
+    if(String(uri).endsWith("/complete")){
+      completed=JSON.parse(String(init?.body));
+      return Response.json({ok:true,status:"failed"});
+    }
+    throw Error("unexpected_provider_path");
+  };
+  const wordpress=async()=>{
+    providerCalls++;
+    return new Response("<html><script>document.cookie='anti_bot'</script></html>",{
+      status:200,headers:{"Content-Type":"text/html"}
+    });
+  };
+  const result=await runOneShippingB("x".repeat(200),released,broker,wordpress);
+  chk(providerCalls===1&&result.status==="failed");
+  chk(completed?.ok===false&&completed.error==="wordpress_hosting_challenge_or_non_json");
+  chk(!JSON.stringify(completed).includes("anti_bot"));
+});
