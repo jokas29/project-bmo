@@ -149,3 +149,25 @@ La rama PR #13 ahora separa las credenciales por diseño: `worker_b_index.ts` fi
 **Acción humana mínima pendiente:** en [Secrets de Supabase B](https://supabase.com/dashboard/project/ubxkqbnzdtgfvphwohzm/functions/secrets), añadir Key `DROPEC_SHIPPING_QUOTE_SECRET`, Value = texto exacto que se guardó en `wp-config.php` (sin comillas ni `define(...)`), `Save`. No enviar la clave al asistente ni pegarla en consultas SQL, chats, GitHub, pantallazos o logs. **No** configurar `DROPEC_B_SHIPPING_WORKER_RELEASE`, no habilitar worker ni ventas.
 
 **Próximas validaciones:** comprobar que la variable está presente sin devolver su valor; verificar una firma con un payload inocuo; contrastar bodega/stock actual y DANE Babahoyo con Dropi; probar conectividad desde el entorno autorizado. Luego una única cotización manual, sin creación de pedidos ni pagos. El modo principal sigue PayPhone prepagado con traslado del dinero antes del despacho, pendiente de desbloqueo del comercio.
+
+
+## Fase 8 — prueba de conectividad REAL del secreto B y el hosting (19-oct-2026)
+
+**Comprobado sin pedidos ni pagos:**
+- El operador confirmó configurar en WordPress y Supabase B la clave exclusiva `DROPEC_SHIPPING_QUOTE_SECRET`.
+- Una función de diagnóstico temporal desplegada en **B** pudo leer el secreto del entorno (valor presente con longitud válida), firmar un cuerpo HMAC-SHA256 para `shipping-quote-v2` y hacer un único POST deliberadamente inválido (`woo_product_id=0`, ciudad/provincia vacías, importe 0). **El PHP debe rechazarlo ANTES de llamar la API Dropi**, por lo que estas pruebas no generaron tarifas, órdenes ni cargos Wallet.
+- Desde un navegador público con JS/cookies, `https://radarcommerce.byethost7.com/wp-json/` respondió con el índice WordPress e incluyó la ruta `/dropec/v1/shipping-quote-v2` de tipo `POST`. La portada respondió también.
+- Desde una Edge Function de B, el POST firmado devolvió HTTP 200 **Content-Type: text/html**, HTML con marcadores de verificación JavaScript/cookies de ByetHost, en lugar del JSON del PHP. **No se ha verificado que WordPress acepte la nueva HMAC**, porque el bloqueo HTTP aparece antes del callback.
+- La función de diagnóstico `dropec-shipping-auth-probe-b` fue replegada inmediatamente como **versión 6 deshabilitada (HTTP 410, `verify_jwt=true`)**; no conserva ejecución del test ni endpoint anónimo. No se desplegó el worker B.
+- Supabase B tras la prueba: `worker_enabled=false`, 0 quote jobs, 0 order jobs, 0 origins, 0 destinos, `commerce_ready()=false`. Supabase A y Woo #63 sin cambios.
+
+**Conclusión técnica:** la credencial está disponible en B, pero la cotización servidor-servidor está bloqueada por la protección web del hosting gratuito, **no por falta de saldo de Dropi ni por fallo demostrado de HMAC**. No debemos mostrar tarifas de envío sin una respuesta JSON válida. La documentación de hosting gratuito de InfinityFree (infraestructura relacionada, pero NO prueba contractual para la cuenta ByetHost específica) describe este mismo mecanismo obligatorio con JavaScript/cookies en solicitudes REST: https://forum.infinityfree.com/t/why-isnt-api-access-working-on-my-website/115198/1 .
+
+**Corrección programada en la PR:** `worker_b_processor.ts` rechaza `HTTP 200 text/html` antes de parsear tarifa, y `worker_b_index.ts` marca ese bloqueo como terminal en vez de reintentar hasta 4 veces; jamás guarda HTML del proveedor. Se añadió una prueba offline de regresión.
+
+**Próxima decisión de arquitectura (sin modificar automáticamente el hosting):**
+1. Preferida por costo: alojar el **endpoint de cotización** en un backend que admita APIs externas (Supabase B) mediante autorización oficial de Dropi, sin depender de POST entrante a ByetHost, una vez se resuelva OAuth/credenciales del proveedor y la validación de bodega/destino. WordPress puede continuar como catálogo mientras tanto.
+2. Alternativa: mover WordPress o únicamente el PHP de cotización a un hosting que admita accesos REST entrantes de servidor a servidor. Evitar trucos para burlar las medidas anti-bot del hosting y cambios de infraestructura sin respaldo.
+3. Si hay un canal de soporte autorizado del hosting, preguntar si existe una excepción oficial y permitida para esta ruta de cotización HMAC. No asumir que existe.
+
+**Bloqueos aún vigentes:** stock/origen Dropi oficialmente actual, destino DANE Babahoyo resuelto, canal REST libre de challenge, worker/B OIDC desplegados y liberados solo con autorización. PayPhone comercio pendiente de desbloqueo; ventas, pagos, fulfillment y cron siguen apagados.
