@@ -42,7 +42,7 @@ Deno.test("verifies exact origin, matching cheapest carrier and numeric destinat
 });
 Deno.test("HMAC matches a fixed SHA256 base64 test vector", async () => {
   check(await signQuoteBody("hello", "key") ===
-    "k2gthBqN7r50alZof2zuiwFhiyycSW8XOsqN6j/7g58=", "HMAC digest");
+    "kwezuRXvtRcf8U2MtV+8x5jGwO8UVtZt7RpqpyOli3s=", "HMAC digest");
 });
 Deno.test("signed POST remains on the quote path, one call only; result is allowlisted", async () => {
   let calls = 0;
