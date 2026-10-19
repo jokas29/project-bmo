@@ -189,12 +189,15 @@ async function complete(runId: string, body: unknown) {
       if(assignment.checkout_version!==lease.checkout_version_raw)
         return deny("checkout_changed_during_quote",409);
       if(b.ok!==true) {
-        // Safe retry. Never store a raw provider response, stack trace or token.
-        const next=Number(job.attempts)>=4 ? "failed" : "queued";
+        // WordPress/browser challenge needs hosting intervention; do NOT retry
+        // a blocked endpoint four times or treat its HTML as a real quote.
+        const hostingBlocked=b.error==="wordpress_hosting_challenge_or_non_json";
+        const next=hostingBlocked||Number(job.attempts)>=4 ? "failed" : "queued";
+        const code=hostingBlocked ? "wordpress_hosting_challenge" : "provider_quote_failed";
         await tx`
           update dropec_private.bot_shipping_quote_jobs
           set status=${next},available_at=now()+interval '5 minutes',
-          leased_at=null,updated_at=now(),last_error='provider_quote_failed'
+          leased_at=null,updated_at=now(),last_error=${code}
           where id=${id}::uuid and status='processing'
         `;
         return output(200,{ok:true,status:next});
