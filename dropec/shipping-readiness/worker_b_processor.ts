@@ -62,7 +62,7 @@ export function validateSignedClaim(input: unknown): SignedClaim {
   const expected=b.expected as VerifiedQuoteRequest;
   const canonical=serializeQuoteRequest(expected);
   if(b.raw!==canonical) fail("noncanonical_claim_payload");
-  const body=object(JSON.parse(b.raw));
+  const body=object(JSON.parse(String(b.raw)));
   if(!body.origin || typeof body.origin!=="object" ||
       (body.origin as Record<string,unknown>).cod_dane!==expected.origin.cod_dane)
     fail("claim_origin_mismatch");
