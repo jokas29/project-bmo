@@ -14,7 +14,7 @@ const job = { id: "00000000-0000-4000-8000-000000000001",
     amount:50,quantity:2,rate_type:"SIN RECAUDO",origin:{id:51,cod_dane:"201001001001"}} };
 const checkout = { platform:"instagram",sender_id:"test",woo_product_id:29,
   province:"Los Ríos",city:"Babahoyo", quantity:2,unit_price:25,
-  updated_at:d(-1),payment_status:"unpaid",payment_intent_id:null,
+  updated_at:d(-1),checkout_version:"2026-10-19 11:59:00.123456+00",payment_status:"unpaid",payment_intent_id:null,
   payment_link:null,paid_at:null,pending_order_job_id:null };
 const product = {woo_product_id:29,dropi_product_id:3481,approved:true,
   woo_status:"publish",currency:"USD"};
@@ -77,4 +77,12 @@ Deno.test("prevents credentials or catalogue-free operation if B product not app
   rejects(()=>shippingAssignment(job,checkout,{...product,approved:false},origins,destination,now),"invalid_product_context");
   rejects(()=>shippingAssignment(job,checkout,{...product,currency:"COP"},origins,destination,now),"invalid_product_context");
   rejects(()=>shippingAssignment({...job,request_payload:{...job.request_payload,rate_type:"CON RECAUDO"}},checkout,product,origins,destination,now),"invalid_job_payload");
+});
+
+Deno.test("never lose PostgreSQL microseconds in checkout compare-and-swap",()=>{
+  const checkoutWithMicros={...checkout,updated_at:new Date("2026-10-19T11:59:00.123Z"),checkout_version:"2026-10-19 11:59:00.123456+00"};
+  const assignment=shippingAssignment(job,checkoutWithMicros,product,origins,destination,now);
+  chk(assignment.checkout_version==="2026-10-19 11:59:00.123456+00");
+  chk(assignment.checkout_version!==checkoutWithMicros.updated_at.toISOString());
+  rejects(()=>shippingAssignment(job,{...checkoutWithMicros,checkout_version:""},product,origins,destination,now),"checkout_version_missing");
 });
