@@ -14,7 +14,7 @@ type Row = Record<string,unknown>;
 const object = (x:unknown):x is Row => x!==null&&typeof x==="object"&&!Array.isArray(x);
 const pin = (x:unknown):x is string => typeof x==="string"&&/^[0-9]{6,16}$/.test(x);
 const id = (x:unknown) => Number.isSafeInteger(x)&&Number(x)>0;
-const observed = (x:unknown) => typeof x==="string"&&Number.isFinite(Date.parse(x));
+const observed = (x:unknown):x is string => typeof x==="string"&&Number.isFinite(Date.parse(x));
 export class ProviderReadinessError extends Error {
  constructor(public readonly reason:string){super(reason);this.name="ProviderReadinessError"}
 }
