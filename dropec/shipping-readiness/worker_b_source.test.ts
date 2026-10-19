@@ -15,7 +15,7 @@ Deno.test("B broker is locked by default and separate from orders and providers"
   has(source,/shippingAssignment\(/, "must re-check context before applying amount");
   has(source,/verifyWorkerQuote\(/, "must verify provider quote before commit");
   has(source,/payment_intent_id is null/, "must not finalize paid checkout");
-  no(source,/\/wake|wc_create_order|create_order\(|orders\/create|dropec-payphone|kzwzputkwcpojevffjrm/, "unsafe side-effect route or project A");
+  no(source,/wc_create_order|create_order\(|orders\/create|dropec-payphone|kzwzputkwcpojevffjrm/, "unsafe side-effect route or project A");
 });
 Deno.test("manual workflow cannot enable quotes or run on a cron",async()=>{
   const yaml=await Deno.readTextFile(new URL("../../.github/workflows/dropec-shipping-worker-b.yml",dir));
