@@ -81,7 +81,11 @@ export function shippingAssignment(
       checkout.payment_status !== "unpaid" || checkout.payment_intent_id != null ||
       checkout.payment_link != null || checkout.paid_at != null ||
       checkout.pending_order_job_id != null) return block("checkout_changed_or_paid");
-  if (!Number.isFinite(date(checkout.updated_at))) {
+  // PostgreSQL timestamps may carry SIX fractional digits. JS Date truncates
+  // them to milliseconds; only the DB-provided raw text is safe for CAS checks.
+  if (typeof checkout.checkout_version !== "string" ||
+      !Number.isFinite(date(checkout.checkout_version)) ||
+      checkout.checkout_version.length > 64) {
     return block("checkout_version_missing");
   }
   if (origins.length !== 1 || !obj(origins[0])) return block("verified_origin_missing_or_ambiguous");
@@ -111,7 +115,7 @@ export function shippingAssignment(
       origin: { id: Number(origin.origin_city.id), cod_dane: String(origin.origin_city.cod_dane) },
     },
     destination_code: String(destination.cod_dane),
-    checkout_version: new Date(date(checkout.updated_at)).toISOString(),
+    checkout_version: checkout.checkout_version,
     dropi_product_id: Number(product.dropi_product_id),
   };
 }
