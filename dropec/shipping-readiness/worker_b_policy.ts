@@ -13,7 +13,8 @@ export const WORKER_B = Object.freeze({
 });
 type Obj = Record<string, unknown>;
 const obj = (x: unknown): x is Obj => x !== null && typeof x === "object" && !Array.isArray(x);
-const date = (x: unknown) => typeof x === "string" ? Date.parse(x) : NaN;
+const date = (x: unknown) =>
+  x instanceof Date ? x.getTime() : typeof x === "string" ? Date.parse(x) : NaN;
 const fresh = (observed: unknown, validUntil: unknown, now: Date) => {
   const start = date(observed), end = date(validUntil), current = now.valueOf();
   return Number.isFinite(start) && Number.isFinite(end) &&
@@ -80,7 +81,7 @@ export function shippingAssignment(
       checkout.payment_status !== "unpaid" || checkout.payment_intent_id != null ||
       checkout.payment_link != null || checkout.paid_at != null ||
       checkout.pending_order_job_id != null) return block("checkout_changed_or_paid");
-  if (typeof checkout.updated_at !== "string" || !Number.isFinite(date(checkout.updated_at))) {
+  if (!Number.isFinite(date(checkout.updated_at))) {
     return block("checkout_version_missing");
   }
   if (origins.length !== 1 || !obj(origins[0])) return block("verified_origin_missing_or_ambiguous");
@@ -110,7 +111,7 @@ export function shippingAssignment(
       origin: { id: Number(origin.origin_city.id), cod_dane: String(origin.origin_city.cod_dane) },
     },
     destination_code: String(destination.cod_dane),
-    checkout_version: checkout.updated_at,
+    checkout_version: new Date(date(checkout.updated_at)).toISOString(),
     dropi_product_id: Number(product.dropi_product_id),
   };
 }
