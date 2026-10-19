@@ -17,6 +17,11 @@ Deno.test("B broker is locked by default and separate from orders and providers"
   has(source,/assignment.checkout_version!==lease.checkout_version_raw/, "lease must match byte-exact timestamp");
   has(source,/shippingAssignment\(/, "must re-check context before applying amount");
   has(source,/verifyWorkerQuote\(/, "must verify provider quote before commit");
+  has(source,/DROPEC_SHIPPING_QUOTE_SECRET/, "dedicated quote-only env secret missing");
+  has(source,/QUOTE_ONLY_SECRET_READY/, "dedicated quote-only key must fail-closed");
+  has(source,/signQuoteBody\(raw,QUOTE_ONLY_SECRET\)/, "must sign only with quote-only key");
+  no(source,/bot_woo_config|dropec_bot_internal_key|vault\.decrypted_secrets|webhook_secret_id/,
+    "quote worker must never use Woo webhook or unrelated secrets");
   has(source,/payment_intent_id is null/, "must not finalize paid checkout");
   no(source,/wc_create_order|create_order\(|orders\/create|dropec-payphone|kzwzputkwcpojevffjrm/, "unsafe side-effect route or project A");
 });
