@@ -118,3 +118,23 @@ Se añadió `wordpress_quote_bridge.ts`, cliente de cotización **sin ejecución
 - **Pruebas:** 51 aprobadas, 0 fallidas; typecheck Deno correcto. CI: https://github.com/jokas29/project-bmo/actions/runs/39292209566 . Son simulaciones, no cotizaciones ni llamadas reales.
 
 **Pendientes antes de desplegar:** revisar y probar las migraciones en B; obtener bodega/stock y destino oficiales vigentes (resolver DANE Babahoyo); instalar firma y credenciales selectivamente autorizadas en Vault B; validar acceso a ByetHost sin usar `/wake`; revisar transacciones bajo concurrencia; fusionar workflow solo con permiso y probar OIDC real; obtener autorización aparte antes de la primera llamada de cotización. Mantener cron, ventas, PayPhone release, fulfillment OFF; Woo #63 intacto; Supabase A/NOSTALTV sin cambios.
+
+
+## Quinta fase — base privada aplicada y precisión de checkout corregida (19-oct-2026)
+
+### Cambios realizados
+
+- Revisado el catálogo de Supabase B directamente: 65 productos Woo, 63 vinculados y aprobados, pero la última sincronización comprobada data del 8 de octubre; **no constituye stock actual**. La función y el control del worker siguen apagados; Woo sin firma ni credenciales autorizadas en B.
+- Revisión de nombres de Vault B sin revelar valores: existen claves del MCP, **no** se encontró `dropec_bot_internal_key` ni el secreto de firma del cotizador Woo.
+- Corregido un error de precisión: PostgreSQL retiene 6 decimales en `updated_at` y JavaScript `Date` solo milisegundos. El worker ahora compara el valor exacto `updated_at::text` del checkout con el `checkout_version::text` del lease y usa el texto original en compare-and-swap, sin truncarlo. Se añadieron pruebas de regresión con microsegundos.
+- Se **aplicó únicamente en Supabase B** la migración aditiva `dropec_b_shipping_verified_destinations_worker_leases_20261019` desde `worker_b_support_migration.sql`, que crea `dropec_private.shipping_verified_destinations` y `dropec_private.shipping_worker_b_leases`. No aplica nada a A, WordPress ni Dropi. Ambas tablas tienen RLS, no ofrecen permisos `PUBLIC/anon/authenticated` y nacieron **vacías**.
+- Verificación SQL posterior: 0 destinos, 0 leases, 0 orígenes, 0 trabajos de cotización, 0 checkouts, 0 pedidos; worker_enabled=false, commerce_ready=false. **Ningún secreto creado ni fecha de verificación inventada**.
+- CI offline y typecheck: **52 pruebas aprobadas, 0 fallidas**: https://github.com/jokas29/project-bmo/actions/runs/39293408557 . El broker permanece **solo código en PR**, sin despliegue ni lanzamiento.
+
+### Dependencias aún externas (no sustituir por datos históricos)
+
+1. Obtener detalles reales del producto y bodegas mediante la integración autenticada Dropify/Dropi; sin credenciales autorizadas de proveedor B o WordPress no puede afirmarse inventario oficial reciente. Documentación pública de Dropi confirma que su integración WooCommerce sincroniza inventario, pero no acredita nuestro stock.
+2. Aclarar la respuesta vigente de `trajectory/bycity` para Babahoyo, porque se observaron dos códigos distintos en registros históricos. Los destinos no pueden insertarse por suposición.
+3. Registrar de forma segura una **firma expresamente autorizada de WordPress** en Vault B, no en GitHub ni en el chat; el plugin PHP actual comparte la clave del webhook Woo.
+4. Validar conectividad de ByetHost desde el entorno autorizado. El acceso público de un servicio de consulta no pudo abrir la ruta REST, lo cual NO equivale a probar que el hosting esté caído.
+5. Tras resolver los puntos anteriores, auditar/autorizar despliegue bloqueado del broker B, la autenticación OIDC real desde main y **una sola cotización controlada** sin pedidos ni Wallet. Ninguna de esas acciones ocurrió en esta fase.
