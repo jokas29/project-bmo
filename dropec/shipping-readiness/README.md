@@ -171,3 +171,14 @@ La rama PR #13 ahora separa las credenciales por diseño: `worker_b_index.ts` fi
 3. Si hay un canal de soporte autorizado del hosting, preguntar si existe una excepción oficial y permitida para esta ruta de cotización HMAC. No asumir que existe.
 
 **Bloqueos aún vigentes:** stock/origen Dropi oficialmente actual, destino DANE Babahoyo resuelto, canal REST libre de challenge, worker/B OIDC desplegados y liberados solo con autorización. PayPhone comercio pendiente de desbloqueo; ventas, pagos, fulfillment y cron siguen apagados.
+
+
+## Fase 9 — cotización directa Dropi Ecuador: autorización previa y pruebas OFFLINE (19-oct-2026)
+
+**Evidencia actual:** la página oficial https://dropi.co/ec/mcp-claude describe el MCP regional con selección de país. Los metadatos OAuth públicos siguen anunciando `authorization_servers=https://integrations.dropi.co/bff`, pero el documento del servidor tiene `issuer=https://integrations.dropi.co`. **Supabase B no está autorizado para unirse al MCP todavía** y no se intentó login/token ni reemplazar la sesión de Claude. El OpenAPI ecuatoriano https://api.dropi.ec/docs revela el contacto oficial de integración `soporteti@dropi.co`, pero no define el contrato de cotización que requerimos.
+
+**Implementado solo en PR #13:** `dropi_direct_ec_policy.ts` y sus 7 pruebas offline: restringir a Ecuador y SIN RECAUDO, construir contrato `quote_shipping` bajo datos actuales autenticados, exigir bodega/stock/DANE oficiales y coincidencia exacta del origen/destino/proveedor. El MCP podría decidir el origen sin devolverlo; **cualquier tarifa sin atestación oficial de bodega queda en modo diagnóstico y no sirve para cobrar a un cliente**. Tarifas sub-centavo se redondean hacia arriba para futura facturación. Ninguna petición a Dropi ocurre en el módulo; no se ha conectado al worker.
+
+**Resultado CI:** 64 pruebas aprobadas, 0 fallidas, Deno check correcto en https://github.com/jokas29/project-bmo/actions/runs/39310273355 .
+
+**Siguiente dependencia externa:** se preparó un borrador Gmail, sin enviarlo, para consultar formalmente autorización API/MCP Ecuador, cotización SIN RECAUDO, datos de bodega/stock/ciudad y discrepancia OAuth. Ver `DROPI_DIRECT_EC_READINESS.md`. Hasta recibir documentación y aprobación oficial, **no habilitar OAuth, worker, ventas, pagos ni procesamiento de pedidos; sin cargos a Wallet**.
