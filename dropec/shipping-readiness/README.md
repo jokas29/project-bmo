@@ -138,3 +138,14 @@ Se añadió `wordpress_quote_bridge.ts`, cliente de cotización **sin ejecución
 3. Registrar de forma segura una **firma expresamente autorizada de WordPress** en Vault B, no en GitHub ni en el chat; el plugin PHP actual comparte la clave del webhook Woo.
 4. Validar conectividad de ByetHost desde el entorno autorizado. El acceso público de un servicio de consulta no pudo abrir la ruta REST, lo cual NO equivale a probar que el hosting esté caído.
 5. Tras resolver los puntos anteriores, auditar/autorizar despliegue bloqueado del broker B, la autenticación OIDC real desde main y **una sola cotización controlada** sin pedidos ni Wallet. Ninguna de esas acciones ocurrió en esta fase.
+
+
+## Fase 7 — firma exclusiva WordPress ↔ Supabase B (19-oct-2026)
+
+El operador confirmó haber instalado el PHP actualizado y configurado una clave en `wp-config.php`. **Esta confirmación aún no demuestra que la firma se haya probado contra WordPress en vivo**. Acceso a WordPress vía herramientas externas falló; un rechazo de lectura no confirma indisponibilidad del hosting.
+
+La rama PR #13 ahora separa las credenciales por diseño: `worker_b_index.ts` firma solo con `DROPEC_SHIPPING_QUOTE_SECRET`, una **Edge Function Secret** del proyecto B (dashboard `/functions/secrets`); **no lee claves del webhook Woo, claves internas ni Vault A**. Se eliminaron de la función broker las dependencias de `bot_woo_config.enabled`, `webhook_secret_id` y `dropec_bot_internal_key`; aún exige su *propia* release, el `worker_enabled` falso por defecto, heartbeat y verificación proveedor vigentes. **Esta nueva versión del broker no está desplegada ni habilitada.**
+
+**Acción humana mínima pendiente:** en [Secrets de Supabase B](https://supabase.com/dashboard/project/ubxkqbnzdtgfvphwohzm/functions/secrets), añadir Key `DROPEC_SHIPPING_QUOTE_SECRET`, Value = texto exacto que se guardó en `wp-config.php` (sin comillas ni `define(...)`), `Save`. No enviar la clave al asistente ni pegarla en consultas SQL, chats, GitHub, pantallazos o logs. **No** configurar `DROPEC_B_SHIPPING_WORKER_RELEASE`, no habilitar worker ni ventas.
+
+**Próximas validaciones:** comprobar que la variable está presente sin devolver su valor; verificar una firma con un payload inocuo; contrastar bodega/stock actual y DANE Babahoyo con Dropi; probar conectividad desde el entorno autorizado. Luego una única cotización manual, sin creación de pedidos ni pagos. El modo principal sigue PayPhone prepagado con traslado del dinero antes del despacho, pendiente de desbloqueo del comercio.
