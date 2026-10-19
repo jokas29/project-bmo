@@ -76,6 +76,12 @@ async function wpQuote(job: SignedClaim, transport: typeof fetch):Promise<ValidS
       "x-dropec-signature":job.signature,"Cache-Control":"no-store"},
     body:job.raw,
   });
+  // Free hosting may return HTTP 200 with an HTML/JS browser challenge.
+  // This is NOT a JSON shipping quote, and retrying blindly won't fix it.
+  const type=(response.headers.get("content-type")||"").toLowerCase();
+  if(!type.includes("application/json") && !type.includes("+json")) {
+    fail("wordpress_hosting_challenge_or_non_json");
+  }
   const reply=await strictJson(response);
   const result=validateQuoteResponse(reply,job.expected);
   if(result.destination_code!==job.destination_code) fail("destination_pin_mismatch");
@@ -106,8 +112,13 @@ export async function runOneShippingB(
   try {
     const quote=await wpQuote(job,wordpressTransport);
     message={id:job.id,lease_nonce:job.lease_nonce,ok:true,quote:{ok:true,...quote}};
-  }catch {
-    message={id:job.id,lease_nonce:job.lease_nonce,ok:false,error:"provider_quote_failed"};
+  }catch(error) {
+    const blocked=error instanceof Error &&
+      error.message==="wordpress_hosting_challenge_or_non_json";
+    message={
+      id:job.id,lease_nonce:job.lease_nonce,ok:false,
+      error:blocked?"wordpress_hosting_challenge_or_non_json":"provider_quote_failed",
+    };
   }
   const completed=await brokerPost("complete",jwt,message,brokerTransport);
   const status=String(completed.status||"");
