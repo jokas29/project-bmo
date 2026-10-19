@@ -1,5 +1,6 @@
 -- DRAFT ONLY: Supabase B (ubxkqbnzdtgfvphwohzm), never project A.
--- Not applied by this PR. No provider calls, no secrets, no activation or cron.
+-- Applied to Supabase B on 2026-10-19 as migration dropec_b_shipping_verified_destinations_worker_leases_20261019.
+-- No provider calls, secrets, activation or cron; tables were verified empty.
 -- A verified official destination pin resolves ambiguous Babahoyo DANE codes.
 create table if not exists dropec_private.shipping_verified_destinations (
   province text not null,
