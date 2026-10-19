@@ -50,8 +50,8 @@ Deno.test("signed POST remains on the quote path, one call only; result is allow
     calls++;
     check(url === endpoint, "endpoint mismatch");
     check(init?.method === "POST" && init.redirect === "error", "unsafe method or redirect");
-    check(JSON.parse(String(init.body)).quantity === 1, "invalid request");
-    check(typeof (init.headers as Record<string,string>)["x-dropec-signature"] === "string", "unsigned");
+    check(JSON.parse(String(init?.body)).quantity === 1, "invalid request");
+    check(typeof (init?.headers as Record<string,string>)["x-dropec-signature"] === "string", "unsigned");
     return Response.json({...valid, raw:{ secret:"not-for-client" }});
   });
   check(calls === 1 && response.shipping_amount === 3.25, "quote result");
