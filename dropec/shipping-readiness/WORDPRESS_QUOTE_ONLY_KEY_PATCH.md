@@ -55,8 +55,8 @@ if (
 
 ## 4. Configuración posterior en Supabase B
 
-- Guardar el **mismo** nuevo valor mediante Vault B como `dropec_shipping_quote_key_b`. Nunca en la tabla pública, el repositorio, capturas o logs.
-- Adaptar el broker B para leer exclusivamente este secreto en operaciones de cotización, sin `bot_woo_config.enabled` ni tokens Woo/Dropi o PayPhone; mantener `worker_enabled=false` y release OFF durante pruebas.
+- Guardar el **mismo** nuevo valor en **Supabase B → Edge Functions → Secrets** (no en SQL Editor/Vault ni en A), con Key `DROPEC_SHIPPING_QUOTE_SECRET`. El valor debe coincidir exactamente con la constante de `wp-config.php`, sin comillas añadidas. Nunca en tablas públicas, repositorios, capturas o logs.
+- El broker B de esta PR ya lee exclusivamente `Deno.env.get("DROPEC_SHIPPING_QUOTE_SECRET")` para firmar cotizaciones y **no reutiliza** claves Woo/Dropi/PayPhone ni Vault A. Continúa en **borrador sin desplegar** y mantiene `worker_enabled=false` y release OFF.
 - Revalidar HMAC-SHA256 base64, el cuerpo RAW, el origen 732/DANE `201001002001` **solo después** de verificación actual y el DANE oficial de Babahoyo. En caso de error de autenticación 401, no reintentar con credenciales Woo compartidas.
 - Probar primero rechazos sin autorización y luego una sola cotización SIN RECAUDO. **No** hacer compras, `create_order`, `/wake`, ni cobrar dinero. Mantener Woo #63 fallido y ventas desactivadas.
 
