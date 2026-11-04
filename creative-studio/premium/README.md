@@ -43,12 +43,20 @@ preview/job keeps its publication lock.
 * Deploy `edge/index.ts` as `dropec-premium-scene` to **Supabase B only**,
   with gateway `verify_jwt=false` because it verifies both owner Supabase
   sessions and GitHub OIDC inside its handler.
-* Create an eligible free Hugging Face ZeroGPU Space using files in `space/`.
-  The Space is a template; its model cold-start and Gradio compatibility must
-  be measured. No Hugging Face account or Space has been created automatically.
-* Configure GitHub Actions repo variable `DROPEC_HF_SPACE=owner/space-name`;
-  set optional secret `DROPEC_HF_TOKEN` only if required by the Space.
-* The workflow is intentionally a safe no-op when no Space is configured.
+* One-time authorization: configure the GitHub Actions repository variable
+  `DROPEC_HF_SPACE=your-huggingface-username/dropec-flux2-pilot` and the
+  **secret** `DROPEC_HF_TOKEN` with write access scoped to that account.
+  Do not send the token in chat, in the website or in code.
+* GitHub's `DropEC Premium — Bootstrap free ZeroGPU Space` workflow can then
+  **create and upload** the private Space automatically under the exact owner
+  account; subsequent source changes sync automatically. It requests **only**
+  `SpaceHardware.ZERO_A10G` (ZeroGPU). It never requests paid hardware.
+* Free hosting eligibility requires a verified HF email and account in good
+  standing older than 30 days; otherwise HF may reject creation. We do not
+  change the billing plan or use a paid alternative.
+* Once the Space actually builds and successfully generates, the separate
+  periodic GPU preview workflow consumes queued staging jobs using that Space.
+* Both workflows safely skip while the required configuration is absent.
 * Test Woo #29 with a verified **higher-resolution real photo**; do not
   upscale 220 × 220 into false photographic detail.
 
