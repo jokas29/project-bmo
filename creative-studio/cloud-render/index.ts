@@ -213,6 +213,38 @@ async function enqueue(req: Request) {
   await admin("/rest/v1/dropec_creative_jobs?id=eq."+id,{method:"PATCH",body:JSON.stringify({status:"generating",publication_locked:true,updated_at:new Date().toISOString()})});
   return response({ok:true,queued:count,job_id:id,publication_locked:true});
 }
+async function rebuild(req: Request) {
+  await requireOwner(req);
+  const body=await req.json();
+  const id=String(body.job_id||"");
+  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)) return response({error:"Invalid job id"},400);
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&id=eq."+encodeURIComponent(id)+"&limit=1");
+  const job=jobs?.[0];
+  if(!job || !job.publication_locked) return response({error:"Locked product not found"},404);
+  if(!["review","awaiting_images","generating"].includes(job.status)) return response({error:"Approved or unpublished job cannot be rebuilt"},409);
+  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,review_notes&job_id=eq."+id+"&order=slide_number.asc");
+  if(slides.length!==4 || slides.some((x:any)=>["approved","rendering"].includes(x.status))) return response({error:"Cannot rebuild approved slides or while rendering"},409);
+  let preserved=0;
+  // Previous files are never deleted. Persist their paths before resetting the working queue.
+  for(const slide of slides) {
+    if(!slide.image_path) continue;
+    await admin("/rest/v1/dropec_creative_slide_versions?on_conflict=job_id,slide_number,image_path",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify({job_id:id,slide_number:slide.slide_number,image_path:slide.image_path,previous_status:slide.status,review_notes:slide.review_notes||null})
+    });
+    preserved++;
+  }
+  for(const slide of slides) {
+    await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id,{
+      method:"PATCH",
+      body:JSON.stringify({status:"pending",image_path:null,review_notes:null,render_attempts:0,render_error:null,render_after:null,render_started_at:null})
+    });
+  }
+  await admin("/rest/v1/dropec_creative_jobs?id=eq."+id,{
+    method:"PATCH",body:JSON.stringify({status:"generating",publication_locked:true,caption_reviewed:false,updated_at:new Date().toISOString()})
+  });
+  return response({ok:true,job_id:id,previous_images_preserved:preserved,publication_locked:true});
+}
 async function recoverStale() {
   const before=new Date(Date.now()-12*60*1000).toISOString();
   const stale=await admin("/rest/v1/dropec_creative_slides?select=id,render_attempts&status=eq.rendering&render_started_at=lt."+encodeURIComponent(before)+"&limit=20");
@@ -279,6 +311,7 @@ Deno.serve(async(req: Request)=>{
   if(req.method!=="POST") return response({error:"Method Not Allowed"},405);
   try {
     if(pathname.endsWith("/enqueue")) return await enqueue(req);
+    if(pathname.endsWith("/rebuild")) return await rebuild(req);
     if(pathname.endsWith("/worker")) { await requireRunner(req);return response(await processOne());}
     return response({error:"Unknown action"},404);
   } catch(error) {
