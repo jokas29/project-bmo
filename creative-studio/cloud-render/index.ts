@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
+import { Image as ModernImage } from "jsr:@matmen/imagescript@3.2.1";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 
 const BASE = Deno.env.get("SUPABASE_URL") || "https://ubxkqbnzdtgfvphwohzm.supabase.co";
@@ -113,7 +114,18 @@ async function imageBytes(job: any) {
   if(ct && !ct.includes("image/") && !ct.includes("octet-stream")) throw new Error("Original photo response is not an image");
   const raw=new Uint8Array(await r.arrayBuffer());
   if(raw.byteLength<800 || raw.byteLength>12*1024*1024) throw new Error("Original photo size invalid");
-  return await Image.decode(raw);
+  try { return await Image.decode(raw); }
+  catch (oldError) {
+    // The legacy compositor's decoder lacks WebP; decode with a pinned modern codec
+    // and pass lossless PNG pixels to the proven slide renderer.
+    try {
+      const modern=await ModernImage.decode(raw);
+      const png=await modern.encode();
+      return await Image.decode(png);
+    } catch (newError) {
+      throw new Error("Unsupported original image: "+clean(errMessage(newError),130));
+    }
+  }
 }
 function photo(im: Image,source: Image,top: number,height: number,width=900) {
   const p=source.clone();
