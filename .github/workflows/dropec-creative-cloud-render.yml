@@ -1,0 +1,59 @@
+name: DropEC Creative Studio — Private Cloud Render
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'creative-studio/cloud-render/**'
+      - '.github/workflows/dropec-creative-cloud-render.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dropec-creative-cloud-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render up to 8 private slides
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Acquire short-lived verified GitHub OIDC token
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-creative"
+          token="$(curl --fail-with-body --silent --show-error -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Render queued slides without publishing
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          ENDPOINT: https://ubxkqbnzdtgfvphwohzm.supabase.co/functions/v1/dropec-creative-render/worker
+        run: |
+          set -euo pipefail
+          for n in {1..8}; do
+            body="$(curl --fail-with-body --silent --show-error --max-time 75 --retry 2 --retry-delay 3 \
+              -X POST "$ENDPOINT" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" -d '{}')"
+            state="$(printf '%s' "$body" | python3 -c 'import json,sys;x=json.load(sys.stdin);print("done" if not x.get("processed") else ("ok" if x.get("ok") else "retry"))')"
+            echo "Cloud render attempt $n: $state"
+            if [ "$state" = "done" ]; then
+              exit 0
+            fi
+            if [ "$state" = "retry" ]; then
+              echo "Composer recorded a slide error/retry in Supabase. Review Creative Studio."
+              exit 1
+            fi
+          done
+          echo "The next scheduled run will continue the remaining private queue."
