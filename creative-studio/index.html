@@ -24,7 +24,7 @@
 </div>
 <script>
 "use strict";
-const URL="https://ubxkqbnzdtgfvphwohzm.supabase.co", KEY="sb_publishable_2CH_gUhiNHR11Bs81_M5Pg_xNCCDORQ", MAIL="3diaz2000@gmail.com", BUCKET="dropec-creative-private";
+const SUPABASE_URL="https://ubxkqbnzdtgfvphwohzm.supabase.co", KEY="sb_publishable_2CH_gUhiNHR11Bs81_M5Pg_xNCCDORQ", MAIL="3diaz2000@gmail.com", BUCKET="dropec-creative-private";
 let session=null,jobs=[],job=null,slides=[];
 const $=id=>document.getElementById(id);
 function msg(s,isError=false){const e=$("msg");e.textContent=s;e.className=isError?"error":"muted"}
@@ -34,7 +34,7 @@ function store(s){session=s;if(s)localStorage.setItem("dropec_studio_session",JS
 async function request(path,opt={},authorized=true){
  const headers=Object.assign({"apikey":KEY}, opt.headers||{});
  if(authorized&&session&&session.access_token)headers.Authorization="Bearer "+session.access_token;
- const res=await fetch(URL+path,Object.assign({},opt,{headers}));
+ const res=await fetch(SUPABASE_URL+path,Object.assign({},opt,{headers}));
  let data;const raw=await res.text();try{data=raw?JSON.parse(raw):null}catch{data={message:raw.slice(0,300)}}
  if(!res.ok)throw Error((data&&(data.msg||data.message||data.error_description||data.error))||("HTTP "+res.status));
  return data;
@@ -166,6 +166,55 @@ async function launchChat(){
  await copy(work);
  try{if(job.status==="pending"){await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"prepared",publication_locked:true,updated_at:new Date().toISOString()});job.status="prepared";$("detailstatus").textContent=status(job.status)}}catch(e){msg("ChatGPT abierto, pero no se guardó el estado: "+e.message,true)}
 }
+async function prepareMac(){
+ if(!job)return;
+ if(slides.some(s=>["uploaded","approved"].includes(s.status))){msg("Ya hay imágenes recibidas o aprobadas. Para proteger ese trabajo, no generaré un nuevo manifiesto completo.",true);return}
+ const uploads=[],time=Date.now();
+ msg("Preparando cuatro enlaces privados…");
+ try{
+   for(let i=1;i<=4;i++){
+     const path=job.id+"/bridge/"+time+"/slide-"+i+".png";
+     const result=await api("/storage/v1/object/upload/sign/"+BUCKET+"/"+path,"POST",{});
+     let url=result.url?String(result.url):"";
+     if(url.startsWith("/object/"))url=SUPABASE_URL+"/storage/v1"+url;
+     else if(url.startsWith("/storage/"))url=SUPABASE_URL+url;
+     else if(!url&&result.token)url=SUPABASE_URL+"/storage/v1/object/upload/sign/"+BUCKET+"/"+path+"?token="+encodeURIComponent(result.token);
+     const parsed=new URL(url);
+     if(parsed.origin!==SUPABASE_URL||!parsed.pathname.startsWith("/storage/v1/object/upload/sign/"+BUCKET+"/")||!parsed.searchParams.has("token"))throw Error("No se recibió una URL de carga firmada y válida.");
+     uploads.push({number:i,path,url});
+   }
+   for(let i=1;i<=4;i++){
+     await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","solucion","cierre"][i-1],image_path:uploads[i-1].path,status:"pending",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
+   }
+   await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"awaiting_images",publication_locked:true,updated_at:new Date().toISOString()});
+   job.status="awaiting_images";$("detailstatus").textContent=status(job.status);
+   const manifest={version:1,job_id:job.id,product_id:job.woo_product_id,created_at:new Date(time).toISOString(),expires_at:new Date(time+7200000).toISOString(),uploads};
+   const blob=new Blob([JSON.stringify(manifest,null,2)],{type:"application/json"}),link=URL.createObjectURL(blob),a=document.createElement("a");
+   a.href=link;a.download="DropEC-puente-"+time+"-"+job.woo_product_id+".json";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),1000);
+   msg("Descargado el manifiesto. Deja el puente Mac ejecutándose y guarda las cuatro imágenes PNG en la carpeta Entrada. Caduca en 2 horas.");await loadSlides();
+ }catch(e){msg("No se pudo preparar la recepción: "+e.message,true)}
+}
+let checkingIncoming=false;
+async function checkIncoming(silent=false){
+ if(!job||!slides.length||checkingIncoming)return;
+ checkingIncoming=true;
+ try{
+   let received=0;
+   for(const sl of slides.filter(x=>x.status==="pending"&&x.image_path&&x.image_path.includes("/bridge/"))){
+     try{
+       await api("/storage/v1/object/info/authenticated/"+BUCKET+"/"+sl.image_path);
+       await api("/rest/v1/dropec_creative_slides?id=eq."+sl.id,"PATCH",{status:"uploaded"});
+       received++;
+     }catch(e){/* El archivo todavía no existe, o el envío no se ha completado. */ }
+   }
+   if(received){
+     await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"review",publication_locked:true,updated_at:new Date().toISOString()});
+     job.status="review";$("detailstatus").textContent=status(job.status);await loadSlides();
+     msg("Llegaron "+received+" imagen(es) al estudio. Revísalas antes de aprobar.");
+   }else if(!silent)msg("Todavía no se han recibido nuevas imágenes.");
+ }catch(e){if(!silent)msg("Error al comprobar recepción: "+e.message,true)}
+ finally{checkingIncoming=false}
+}
 async function loadSlides(){
  try{slides=await api("/rest/v1/dropec_creative_slides?select=*&job_id=eq."+encodeURIComponent(job.id)+"&order=slide_number.asc");await renderSlides()}catch(e){msg("Error cargando diapositivas: "+e.message,true)}
 }
@@ -173,12 +222,12 @@ async function signed(path,download=false){
  const out=await api("/storage/v1/object/sign/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/"),"POST",{expiresIn:300});
  const link=out.signedURL||out.signedUrl||out.url;
  if(!link)throw Error("No se recibió un enlace privado.");
- return link.startsWith("http")?link:URL+(link.startsWith("/storage/v1/")?"":"/storage/v1")+link
+ return link.startsWith("http")?link:SUPABASE_URL+(link.startsWith("/storage/v1/")?"":"/storage/v1")+link
 }
 async function renderSlides(){
  const holder=$("slides");holder.replaceChildren();const names=["Portada","Problema","Solución","Cierre"];
  for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Para revisión":"Sin imagen"):"Sin imagen"));
- const media=text("div",null,"slide-preview");if(s&&s.image_path){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
+ const media=text("div",null,"slide-preview");if(s&&s.image_path&&s.status!=="pending"){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
  d.append(button("Copiar prompt",()=>copy(prompt(job,i))));
  const file=document.createElement("input");file.type="file";file.accept="image/png,image/jpeg,image/webp";file.setAttribute("aria-label","Subir imagen "+i);file.onchange=async()=>{if(file.files&&file.files[0])await upload(i,file.files[0])};d.append(file);
  if(s&&s.image_path){d.append(button("Aprobar",()=>updateSlide(s,"approved")));d.append(button("Rechazar",()=>rejectSlide(s)));d.append(button("Descargar",async()=>{try{window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}))}
@@ -204,6 +253,9 @@ function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
 $("search").oninput=renderJobs;$("filter").onchange=renderJobs;
+$("preparemac").onclick=prepareMac;
+$("syncimages").onclick=()=>checkIncoming(false);
+setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
 $("approve").onclick=()=>{if(slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved"))updateJob("approved")};
 $("ready").onclick=()=>{if(job&&job.status==="approved")updateJob("ready_to_publish")};
 try{const saved=localStorage.getItem("dropec_studio_session");if(saved)store(JSON.parse(saved))}catch{store(null)}if(session)enter();
