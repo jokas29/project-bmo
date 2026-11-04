@@ -34,10 +34,10 @@
  <div class="bridge" id="cloudautomate">
   <div class="row"><h2 style="margin:0">Generación automática en la nube</h2><span class="tag ok">Gratis · Sin Mac · Sin publicar</span></div>
   <p class="muted">Crea cuatro diapositivas 1080 × 1350 con el producto REAL, los textos guardados y una composición editorial DropEC. No inventa accesorios, descuentos ni envíos. Un ejecutor privado revisa la cola aproximadamente cada 5 minutos, incluso con esta página cerrada.</p>
-  <div class="row" style="justify-content:flex-start"><button class="primary" id="autogenerate">Generar carrusel automáticamente</button><button id="refreshcloud">Actualizar progreso</button></div>
+  <div class="row" style="justify-content:flex-start"><button class="primary" id="autogenerate">Generar carrusel automáticamente</button><button id="refreshcloud">Actualizar progreso</button><button id="rebuildcloud">Regenerar desde la foto actual</button></div>
   <small id="cloudstate">Las diapositivas permanecen privadas para revisión; no se envían a redes.</small>
  </div>
- <div class="bridge"><div class="row"><h2 style="margin:0">Recepción desde Mac (respaldo opcional)</h2><span class="tag">Experimental · $0</span></div><p class="muted">Una carpeta vigilada en tu Mac recibirá las imágenes generadas en ChatGPT. Después de instalar el puente, guarda los cuatro PNG en <code>~/Downloads/DropEC-Creativos/Entrada</code>; el Mac enviará las imágenes a Supabase en orden.</p><div class="row"><button id="preparemac" class="primary">Preparar recepción automática para Mac</button><button id="syncimages">Comprobar imágenes recibidas</button></div><small>Instala y ejecuta el <a href="https://github.com/jokas29/project-bmo/blob/main/creative-studio/puente-mac.command" target="_blank" rel="noopener noreferrer">puente gratuito para Mac</a>. Este botón descargará un archivo de autorización temporal, válido por 2 horas, que el puente detecta. No compartas ese archivo. Nada se publica sin tu aprobación.</small></div><h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
+ <div class="bridge"><div class="row"><h2 style="margin:0">Recepción desde Mac (respaldo opcional)</h2><span class="tag">Experimental · $0</span></div><p class="muted">Una carpeta vigilada en tu Mac recibirá las imágenes generadas en ChatGPT. Después de instalar el puente, guarda los cuatro PNG en <code>~/Downloads/DropEC-Creativos/Entrada</code>; el Mac enviará las imágenes a Supabase en orden.</p><div class="row"><button id="preparemac" class="primary">Preparar recepción automática para Mac</button><button id="syncimages">Comprobar imágenes recibidas</button></div><small>Instala y ejecuta el <a href="https://github.com/jokas29/project-bmo/blob/main/creative-studio/puente-mac.command" target="_blank" rel="noopener noreferrer">puente gratuito para Mac</a>. Este botón descargará un archivo de autorización temporal, válido por 2 horas, que el puente detecta. No compartas ese archivo. Nada se publica sin tu aprobación.</small></div><h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="panel stack"><div class="row"><h3 style="margin:0">Versiones anteriores</h3><button id="historybutton">Ver historial privado</button></div><div id="historylist" class="stack"></div></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
  <section id="guide" class="panel stack hide"><h2>Cómo utilizar este estudio</h2><p>1. Abre un producto y pulsa «Generar carrusel automáticamente»; un ejecutor en la nube prepara cada diapositiva desde la foto ORIGINAL, sin Mac.</p><p>2. Puedes cerrar la página y volver. El sistema reintenta errores transitorios y conserva las imágenes recibidas.</p><p>3. Revisa las cuatro diapositivas; aprueba o rechaza individualmente. Si la foto es de baja resolución verás un aviso de calidad.</p><p>4. ChatGPT sigue disponible para diseños especiales, sin control automático desde la web.</p><p class="notice">Todo se almacena de forma privada. Ningún botón inicia ventas ni publica en redes.</p><button id="guideback">Volver a productos</button></section>
 </div>
 <script>
@@ -288,6 +288,7 @@ function showGenerationState(){
  const errors=slides.filter(x=>x.status==="error").length;
  $("cloudstate").textContent=count+" de 4 diapositivas recibidas"+(working?" · "+working+" procesándose":"")+(errors?" · "+errors+" requieren revisión":"")+". Ejecutor en la nube cada 5 minutos; sin publicación.";
  $("autogenerate").disabled=["approved","ready_to_publish","archived"].includes(job.status)||(job.status==="generating"&&!errors);
+ $("rebuildcloud").disabled=["approved","ready_to_publish","archived"].includes(job.status)||working>0;
 }
 async function queueCloud(){
  if(!job||!session)return;
@@ -299,6 +300,34 @@ async function queueCloud(){
   msg("En cola: "+result.queued+" diapositivas. Se procesarán en la nube aunque cierres la página.");
   await refreshCloud(true);
  }catch(e){msg("Generación automática: "+e.message,true);showGenerationState()}
+}
+
+async function rebuildCloud(){
+ if(!job)return;
+ if(!window.confirm("¿Regenerar el carrusel desde la foto actual? Las imágenes anteriores se conservarán en el historial privado. No se publicará nada."))return;
+ $("rebuildcloud").disabled=true;
+ try{
+  const result=await api("/functions/v1/dropec-creative-render/rebuild","POST",{job_id:job.id});
+  if(!result.ok)throw Error(result.error||"La regeneración fue rechazada.");
+  job.status="generating";$("detailstatus").textContent=status(job.status);
+  msg("Se conservaron "+result.previous_images_preserved+" imágenes anteriores. La cola generará las cuatro nuevas.");
+  await refreshCloud(true);
+ }catch(e){msg("Regeneración: "+e.message,true)}finally{showGenerationState()}
+}
+async function showHistory(){
+ if(!job)return;
+ const holder=$("historylist");holder.replaceChildren(text("small","Leyendo versiones anteriores…","muted"));
+ try{
+  const rows=await api("/rest/v1/dropec_creative_slide_versions?select=slide_number,image_path,archived_at&job_id=eq."+encodeURIComponent(job.id)+"&order=archived_at.desc&limit=24");
+  holder.replaceChildren();
+  if(!rows.length){holder.append(text("small","Todavía no hay versiones anteriores.","muted"));return}
+  for(const x of rows){
+   const item=document.createElement("div");item.className="row";
+   item.append(text("small","Diapositiva "+x.slide_number+" · "+new Date(x.archived_at).toLocaleString("es-EC")));
+   item.append(button("Ver archivo privado",async()=>{try{window.open(await signed(x.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}));
+   holder.append(item);
+  }
+ }catch(e){holder.replaceChildren(text("small","No pude cargar el historial: "+e.message,"error"))}
 }
 async function refreshCloud(silent=false){
  if(!job||!session)return;
@@ -347,7 +376,7 @@ function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
 $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
-$("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);
+$("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);$("rebuildcloud").onclick=rebuildCloud;$("historybutton").onclick=showHistory;
 $("syncimages").onclick=()=>checkIncoming(false);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
