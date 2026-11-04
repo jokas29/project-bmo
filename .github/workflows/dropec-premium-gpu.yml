@@ -1,0 +1,122 @@
+name: DropEC Premium — Open-source GPU Preview (staging only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dropec-premium-free-gpu
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENDPOINT: https://ubxkqbnzdtgfvphwohzm.supabase.co/functions/v1/dropec-premium-scene
+      DROPEC_HF_SPACE: ${{ vars.DROPEC_HF_SPACE }}
+      DROPEC_HF_TOKEN: ${{ secrets.DROPEC_HF_TOKEN }}
+    steps:
+      - name: Detect free Space configuration
+        id: config
+        shell: bash
+        run: |
+          if [ -z "$DROPEC_HF_SPACE" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Premium previews not processed: DROPEC_HF_SPACE is not configured. Existing private slides remain unchanged."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout reviewed compositor and GPU adapter
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Get short-lived OIDC identity for staging worker
+        if: steps.config.outputs.configured == 'true'
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-creative-premium"
+          token="$(curl --fail-with-body --silent --show-error --max-time 20 -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Lease one exclusive premium preview
+        if: steps.config.outputs.configured == 'true'
+        id: claim
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/claim" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-claim.json
+          python3 <<'PY'
+          import json,os
+          value=json.load(open("/tmp/dropec-claim.json"))
+          if not value.get("ok"):
+              raise SystemExit("Premium claim rejected")
+          processed=value.get("processed") is True
+          if processed:
+              preview_id=value.get("preview_id","")
+              import re
+              if not re.fullmatch(r'[0-9a-f-]{36}',preview_id):
+                  raise SystemExit("Invalid preview id")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              out.write(f"processed={'true' if processed else 'false'}\n")
+              if processed: out.write("preview_id="+preview_id+"\n")
+          print("Premium preview leased" if processed else "No eligible premium preview; no GPU time used")
+          PY
+
+      - name: Install small CPU poster compositor and Gradio client
+        if: steps.claim.outputs.processed == 'true'
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-input \
+            Pillow==11.3.0 requests==2.32.5 'gradio_client>=1.13,<2'
+
+      - name: Generate external GPU scene and compose exact DropEC text
+        if: steps.claim.outputs.processed == 'true'
+        id: generate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 creative-studio/premium/runner.py --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg 2>/tmp/dropec-gpu-error.log
+
+      - name: Save preview only to private Supabase Storage
+        if: steps.generate.outcome == 'success'
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          PREVIEW_ID: ${{ steps.claim.outputs.preview_id }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 60 -X POST "$ENDPOINT/complete?preview_id=$PREVIEW_ID" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" \
+            --data-binary @/tmp/dropec-preview.jpg > /tmp/dropec-complete.json
+          python3 -c 'import json; assert json.load(open("/tmp/dropec-complete.json"))["status"] == "ready"; print("Preview stored privately; no posting.")'
+
+      - name: Record retryable failure without publishing
+        if: failure() && steps.claim.outputs.processed == 'true'
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          PREVIEW_ID: ${{ steps.claim.outputs.preview_id }}
+        run: |
+          python3 <<'PY'
+          import json,os
+          try: detail=open("/tmp/dropec-gpu-error.log").read().strip().splitlines()[-1][:240]
+          except Exception: detail="GPU or staging upload unavailable"
+          json.dump({"preview_id":os.environ["PREVIEW_ID"],"error":detail},open("/tmp/dropec-error.json","w"))
+          PY
+          curl --silent --show-error --max-time 25 -X POST "$ENDPOINT/failed" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            --data-binary @/tmp/dropec-error.json || true
