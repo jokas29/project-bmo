@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>DropEC Creative Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#101119;--panel:#1b1d2a;--panel2:#242536;--line:#383a4e;--fg:#f5f2ff;--muted:#aaabbd;--lime:#c8ff56;--purple:#9b72ff;--danger:#ff7686}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0%,#30214a 0%,transparent 36%),var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}h1,h2,h3,p{margin:0 0 10px}h1{font-size:27px;letter-spacing:-.7px}h2{font-size:22px;letter-spacing:-.6px}h3{font-size:17px}small,.muted{color:var(--muted)}a{color:var(--lime)}.wrap{max-width:1240px;margin:auto;padding:22px}.row{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.stack{display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:19px;padding:22px}.hero{background:linear-gradient(115deg,#2e1c50,#171925 67%);border:1px solid #51406e;border-radius:22px;padding:24px}.brand{font-weight:900;letter-spacing:-.7px;font-size:23px}.brand span{color:var(--lime)}.tag{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--muted);font-size:12px}.ok{color:var(--lime)}.danger{color:var(--danger)}input,select,textarea{background:#11121c;color:var(--fg);border:1px solid #48495a;border-radius:11px;padding:12px;width:100%;font:inherit;outline-color:var(--purple)}button{font:inherit;cursor:pointer;border:1px solid #545167;border-radius:11px;background:#302a45;color:white;padding:10px 15px;font-weight:650}button:hover{border-color:var(--purple);background:#3d315d}button:disabled{opacity:.4;cursor:not-allowed}.primary{background:var(--lime);color:#151821;border-color:var(--lime)}.primary:hover{background:#dcff9c}.soft{background:#211c33}.error{color:var(--danger)}.notice{padding:12px 15px;border:1px solid #504566;border-radius:12px;background:#29223b}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}.stat strong{display:block;font-size:29px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:17px}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}.card:hover{border-color:var(--purple)}.card-media{height:204px;display:flex;align-items:center;justify-content:center;background:#f2f0ea;overflow:hidden}.card-media img{width:100%;height:100%;object-fit:contain}.card-body{padding:17px;display:grid;gap:9px}.card-body h3{min-height:50px}.slides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.slide{background:var(--panel2);border:1px solid var(--line);padding:14px;border-radius:15px;min-width:0}.slide-preview{aspect-ratio:4/5;background:#11121c;border:1px solid #464455;display:flex;align-items:center;justify-content:center;border-radius:10px;overflow:hidden;margin:12px 0}.slide-preview img{width:100%;height:100%;object-fit:contain}.slide input[type=file]{font-size:12px;padding:7px}.slide button{margin:4px 3px 0 0;font-size:12px;padding:8px}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px}.auth{max-width:420px;margin:8vh auto}.tabs{display:flex;gap:8px;flex-wrap:wrap}.hide{display:none!important}#msg{min-height:22px;margin:12px 0}hr{border:0;border-top:1px solid var(--line);margin:20px 0}pre{white-space:pre-wrap;word-wrap:break-word;color:var(--muted);font-size:12px}
+@media(max-width:850px){.slides{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}}@media(max-width:480px){.slides{grid-template-columns:1fr}.wrap{padding:13px}h1{font-size:24px}.panel{padding:15px}.row{align-items:stretch}.row button{flex:1}}
+</style></head><body>
+<div id="authbox" class="wrap auth">
+ <div class="panel stack"><div class="brand">Drop<span>EC</span> <span style="color:#fff;font-weight:500;font-size:14px">Creative Studio</span></div><h2>Acceso privado</h2><p class="muted">Estudio creativo de DropEC. Solo el propietario autorizado puede acceder.</p>
+ <label>Correo<input type="email" id="email" autocomplete="email" placeholder="Tu correo autorizado"></label>
+ <label>Contraseña<input type="password" id="password" autocomplete="current-password" placeholder="Contraseña de este estudio"></label>
+ <button id="login" class="primary">Entrar</button><button id="register">Crear mi acceso</button><button id="recover">Recuperar contraseña</button><p id="authmsg" class="muted"></p>
+ <small>Este acceso es independiente de WordPress y del inicio de sesión de ChatGPT. No compartas tu contraseña.</small></div>
+</div>
+<div id="workspace" class="wrap hide">
+ <header class="row" style="margin-bottom:21px"><div><div class="brand">Drop<span>EC</span> Creative Studio</div><small>Estudio de carruseles · Entorno privado de pruebas</small></div><div class="row"><span class="tag">Sin publicación automática</span><button id="help">Cómo usar</button><button id="logout">Cerrar sesión</button></div></header>
+ <div id="msg" role="status"></div>
+ <section id="dashboard" class="stack"><div class="hero"><h1>Tu próxima publicación empieza aquí.</h1><p class="muted">Elige un producto, copia el prompt para ChatGPT, genera una diapositiva y vuelve para subirla y aprobarla.</p></div>
+ <div id="stats" class="stats"></div><div class="row"><h2>Cola de productos</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
+ </section>
+ <section id="detail" class="stack hide"><div class="row"><button id="back">← Volver</button><span id="detailstatus" class="tag"></span></div><div class="split"><div class="panel"><h2 id="jobtitle"></h2><p id="jobprice" class="muted"></p><img id="original" style="height:220px;max-width:100%;object-fit:contain;background:white;border-radius:12px;padding:12px" alt="Fotografía del producto original"><p id="jobnotes" class="muted"></p></div><div class="panel"><h2>Generación en ChatGPT</h2><p class="muted">Copia un prompt, genera una imagen por vez y cárgala aquí. No es una conexión automática a las imágenes del chat.</p><div class="stack"><button id="copyficha">Copiar ficha del producto</button><button id="copyprompt" class="primary">Copiar prompt de portada</button><button id="openchat">Abrir ChatGPT</button></div><p class="muted" style="margin-top:15px">Formato 1080 × 1350 · 4:5 · Evitar cambiar la apariencia física del producto.</p></div></div>
+ <h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
+ <section id="guide" class="panel stack hide"><h2>Cómo utilizar este estudio</h2><p>1. Selecciona un producto real de la cola y copia el prompt.</p><p>2. Genera cada diapositiva en un chat normal de ChatGPT, usando la foto original como referencia.</p><p>3. Descarga las imágenes, súbelas aquí y revisa las cuatro antes de aprobar.</p><p class="notice">En esta versión las imágenes se suben manualmente. El chat normal de ChatGPT no las entrega automáticamente a esta aplicación. Aprobar no significa publicar.</p><button id="guideback">Volver a productos</button></section>
+</div>
+<script>
+"use strict";
+const URL="https://ubxkqbnzdtgfvphwohzm.supabase.co", KEY="sb_publishable_2CH_gUhiNHR11Bs81_M5Pg_xNCCDORQ", MAIL="3diaz2000@gmail.com", BUCKET="dropec-creative-private";
+let session=null,jobs=[],job=null,slides=[];
+const $=id=>document.getElementById(id);
+function msg(s,isError=false){const e=$("msg");e.textContent=s;e.className=isError?"error":"muted"}
+function authMsg(s,bad=false){$("authmsg").textContent=s;$("authmsg").className=bad?"error":"muted"}
+function show(id){["dashboard","detail","guide"].forEach(k=>$(k).classList.toggle("hide",k!==id));}
+function store(s){session=s;if(s)localStorage.setItem("dropec_studio_session",JSON.stringify(s));else localStorage.removeItem("dropec_studio_session")}
+async function request(path,opt={},authorized=true){
+ const headers=Object.assign({"apikey":KEY}, opt.headers||{});
+ if(authorized&&session&&session.access_token)headers.Authorization="Bearer "+session.access_token;
+ const res=await fetch(URL+path,Object.assign({},opt,{headers}));
+ let data;const raw=await res.text();try{data=raw?JSON.parse(raw):null}catch{data={message:raw.slice(0,300)}}
+ if(!res.ok)throw Error((data&&(data.msg||data.message||data.error_description||data.error))||("HTTP "+res.status));
+ return data;
+}
+async function refresh(){
+ if(!session||!session.refresh_token)return false;
+ try{const s=await request("/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refresh_token:session.refresh_token})},false);store(s);return true}catch{store(null);return false}
+}
+async function login(){
+ const email=$("email").value.trim().toLowerCase(), password=$("password").value;
+ if(email!==MAIL){authMsg("Este estudio solo admite el correo propietario autorizado.",true);return}
+ if(!password){authMsg("Introduce la contraseña.",true);return}
+ authMsg("Comprobando acceso…");
+ try{const s=await request("/auth/v1/token?grant_type=password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})},false);store(s);await enter()}catch(e){authMsg(e.message,true)}
+}
+async function signup(){
+ const email=$("email").value.trim().toLowerCase(),password=$("password").value;
+ if(email!==MAIL){authMsg("Utiliza el correo propietario autorizado.",true);return}
+ if(password.length<8){authMsg("Utiliza una contraseña de al menos 8 caracteres.",true);return}
+ try{const s=await request("/auth/v1/signup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})},false);authMsg(s.access_token?"Cuenta creada. Ya puedes entrar.":"Revisa tu correo y confirma el registro; después inicia sesión.")}catch(e){authMsg(e.message,true)}
+}
+async function recover(){
+ const email=$("email").value.trim().toLowerCase();
+ if(email!==MAIL){authMsg("Introduce el correo autorizado.",true);return}
+ try{await request("/auth/v1/recover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,redirect_to:location.href.split("#")[0]})},false);authMsg("Si la cuenta existe, recibirás instrucciones de recuperación.")}catch(e){authMsg(e.message,true)}
+}
+async function enter(){
+ if(!session){$("authbox").classList.remove("hide");$("workspace").classList.add("hide");return}
+ try{const u=await request("/auth/v1/user");if((u.email||"").toLowerCase()!==MAIL)throw Error("Esta cuenta no está autorizada.");$("authbox").classList.add("hide");$("workspace").classList.remove("hide");show("dashboard");await loadJobs()}
+ catch(e){if(/JWT|expired|401|token/i.test(e.message)&&await refresh()){return enter()}store(null);$("authbox").classList.remove("hide");$("workspace").classList.add("hide");authMsg("Inicia sesión para acceder. "+e.message,true)}
+}
+async function api(path,method="GET",body=null,headers={}){
+ try{return await request(path,{method,headers:Object.assign(body&&!(body instanceof File)&&!(body instanceof FormData)?{"Content-Type":"application/json"}:{},headers),body:(body instanceof File||body instanceof FormData)?body:body===null?undefined:JSON.stringify(body)})}
+ catch(e){if(session&&session.refresh_token&&/JWT|expired|401|Auth session/i.test(e.message)&&await refresh())return request(path,{method,headers:Object.assign({"Content-Type":"application/json"},headers),body:body===null?undefined:JSON.stringify(body)});throw e}
+}
+function text(tag,value,cl){const e=document.createElement(tag);if(value!==undefined&&value!==null)e.textContent=String(value);if(cl)e.className=cl;return e}
+function button(label,fn,style=""){const b=text("button",label,style);b.addEventListener("click",fn);return b}
+function photo(src){const img=document.createElement("img");img.alt="Fotografía original del catálogo";try{const u=new URL(src);if(u.protocol==="https:")img.src=u.href}catch{}img.onerror=()=>{img.style.display="none"};return img}
+function money(v){return v===null||v===undefined?"Precio por verificar":new Intl.NumberFormat("es-EC",{style:"currency",currency:"USD"}).format(Number(v))}
+function status(s){return ({pending:"Pendiente",prepared:"Preparado",generating:"Generando",awaiting_images:"Esperando imágenes",review:"En revisión",approved:"Aprobado",ready_to_publish:"Listo para publicación",archived:"Archivado"})[s]||s}
+async function loadJobs(){
+ msg("Cargando productos…");
+ try{jobs=await api("/rest/v1/dropec_creative_jobs?select=*&order=created_at.desc");renderJobs();msg("Contenido privado · No se publicará nada sin autorización.")}
+ catch(e){msg("No pude cargar productos: "+e.message,true)}
+}
+function renderJobs(){
+ const st=$("stats");st.replaceChildren();
+ [["Pendientes",jobs.filter(x=>x.status==="pending"||x.status==="prepared").length],["Revisión",jobs.filter(x=>x.status==="review"||x.status==="awaiting_images").length],["Aprobados",jobs.filter(x=>x.status==="approved").length],["Preparados",jobs.filter(x=>x.status==="ready_to_publish").length]].forEach(k=>{const d=text("div",null,"stat");d.append(text("small",k[0]),text("strong",k[1]));st.append(d)});
+ const q=$("search").value.toLowerCase(),f=$("filter").value,c=$("cards");c.replaceChildren();
+ const found=jobs.filter(x=>(!f||x.status===f)&&((x.product_name||"").toLowerCase().includes(q)||String(x.woo_product_id).includes(q)||String(x.dropi_product_id).includes(q)));
+ if(!found.length){c.append(text("p","No hay productos con estos filtros.","muted"));return}
+ found.forEach(x=>{const d=text("article",null,"card"),m=text("div",null,"card-media"),body=text("div",null,"card-body");m.append(photo(x.source_image_url));body.append(text("span","Woo #"+x.woo_product_id+" · "+status(x.status),"muted"),text("h3",x.product_name),text("strong",money(x.product_price)),button("Abrir estudio creativo",()=>openJob(x.id),"primary"));d.append(m,body);c.append(d)})
+}
+function ficha(j){return ["PRODUCTO REAL: "+j.product_name,"Woo: "+j.woo_product_id+" | Dropi: "+j.dropi_product_id,"Precio en catálogo: "+money(j.product_price)+" (verificar vigencia)","Fotografía original: "+(j.source_image_url||"No disponible"),"Notas: "+(j.product_notes||"Sin notas"),"CTA: Solicita tu cotización. Envío por confirmar. No prometer pago contraentrega."].join("\n")}
+function prompt(j,n){
+ const b=j.prompt_bundle||{},s=Array.isArray(b.slides)?b.slides.find(x=>x.slide===n):null;
+ return ["Eres director/a de arte para DropEC (Ecuador). Debes generar UNA imagen de carrusel de calidad premium, usando la FOTO REAL como referencia visual obligatoria.","FORMATO: 1080x1350, 4:5. DIAPOSITIVA "+n+" de 4.","PRODUCTO: "+j.product_name+" | Woo #"+j.woo_product_id+".","Foto de referencia: "+(j.source_image_url||"Adjuntaré la imagen")+".",j.product_notes||"",b.visual_system?("DIRECCIÓN VISUAL: "+b.visual_system.theme):"","CONCEPTO: "+(s?s.role:"Diapositiva de producto"),"TÍTULO sugerido: "+(s?s.headline:""),"COMPOSICIÓN: "+(s?s.composition:"Producto protagonista, sin elementos genéricos."),"NO ALTERAR: piezas, forma, color, proporciones o capacidades del producto real. No inventar accesorios, métricas, testimonios, descuentos ni características.","Solo si el precio sigue vigente, usar "+money(j.product_price)+"; el envío se confirma antes del pago.","CTA: Solicita tu cotización. NO PayPhone, NO contraentrega, NO prometer despacho inmediato.","Mantén la coherencia visual con las otras diapositivas. Evita microtextos y sobrecarga.","Genera solo esta imagen; después la guardaré y subiré manualmente al estudio."].filter(Boolean).join("\n\n")
+}
+async function copy(s){try{await navigator.clipboard.writeText(s);msg("Texto copiado al portapapeles.")}catch{msg("No se pudo copiar; comprueba permisos del navegador.",true)}}
+async function openJob(id){
+ job=jobs.find(x=>x.id===id);if(!job)return;show("detail");$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";
+ const image=$("original");image.src=job.source_image_url||"";image.alt="Fotografía original";
+ $("copyprompt").onclick=()=>copy(prompt(job,1));$("copyficha").onclick=()=>copy(ficha(job));$("openchat").onclick=()=>window.open("https://chatgpt.com/","_blank","noopener,noreferrer");
+ await loadSlides()
+}
+async function loadSlides(){
+ try{slides=await api("/rest/v1/dropec_creative_slides?select=*&job_id=eq."+encodeURIComponent(job.id)+"&order=slide_number.asc");await renderSlides()}catch(e){msg("Error cargando diapositivas: "+e.message,true)}
+}
+async function signed(path,download=false){
+ const out=await api("/storage/v1/object/sign/"+BUCKET+"/"+path.split("/").map(encodeURIComponent).join("/"),"POST",{expiresIn:300});
+ const link=out.signedURL||out.signedUrl||out.url;
+ if(!link)throw Error("No se recibió un enlace privado.");
+ return link.startsWith("http")?link:URL+(link.startsWith("/storage/v1/")?"":"/storage/v1")+link
+}
+async function renderSlides(){
+ const holder=$("slides");holder.replaceChildren();const names=["Portada","Problema","Solución","Cierre"];
+ for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Para revisión":"Sin imagen"):"Sin imagen"));
+ const media=text("div",null,"slide-preview");if(s&&s.image_path){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
+ d.append(button("Copiar prompt",()=>copy(prompt(job,i))));
+ const file=document.createElement("input");file.type="file";file.accept="image/png,image/jpeg,image/webp";file.setAttribute("aria-label","Subir imagen "+i);file.onchange=async()=>{if(file.files&&file.files[0])await upload(i,file.files[0])};d.append(file);
+ if(s&&s.image_path){d.append(button("Aprobar",()=>updateSlide(s,"approved")));d.append(button("Rechazar",()=>rejectSlide(s)));d.append(button("Descargar",async()=>{try{window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}))}
+ if(s&&s.review_notes)d.append(text("p",s.review_notes,"muted"));holder.append(d)}
+ const all=slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved");
+ $("approve").disabled=!all||job.status==="approved"||job.status==="ready_to_publish";$("ready").disabled=job.status!=="approved";
+}
+async function upload(i,file){
+ if(!["image/png","image/jpeg","image/webp"].includes(file.type)){msg("Solo se permiten PNG, JPG y WEBP.",true);return}
+ if(file.size>15*1024*1024){msg("Máximo 15 MB por archivo.",true);return}
+ const ext=file.type==="image/jpeg"?"jpg":file.type==="image/webp"?"webp":"png",path=job.id+"/slide-"+i+"-"+Date.now()+"."+ext;
+ msg("Subiendo diapositiva "+i+"…");
+ try{
+ const form=new FormData();form.append("cacheControl","3600");form.append("",file);await api("/storage/v1/object/"+BUCKET+"/"+path,"POST",form,{"x-upsert":"false"});
+ await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","solucion","cierre"][i-1],image_path:path,status:"uploaded",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
+ await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"review",publication_locked:true});
+ job.status="review";$("detailstatus").textContent=status(job.status);msg("Imagen subida. Debes revisarla y aprobarla.");await loadSlides();
+ }catch(e){msg("Fallo de subida: "+e.message,true)}
+}
+async function updateSlide(s,next){try{await api("/rest/v1/dropec_creative_slides?id=eq."+s.id,"PATCH",{status:next,review_notes:null});msg("Estado actualizado.");await loadSlides()}catch(e){msg(e.message,true)}}
+async function rejectSlide(s){const why=promptUser("¿Qué debemos corregir en esta diapositiva?");if(why===null)return;try{await api("/rest/v1/dropec_creative_slides?id=eq."+s.id,"PATCH",{status:"rejected",review_notes:why});msg("Diapositiva marcada para corregir.");await loadSlides()}catch(e){msg(e.message,true)}}
+function promptUser(s){return window.prompt(s)}
+async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
+$("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
+$("search").oninput=renderJobs;$("filter").onchange=renderJobs;
+$("approve").onclick=()=>{if(slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved"))updateJob("approved")};
+$("ready").onclick=()=>{if(job&&job.status==="approved")updateJob("ready_to_publish")};
+try{const saved=localStorage.getItem("dropec_studio_session");if(saved)store(JSON.parse(saved))}catch{store(null)}if(session)enter();
+</script></body></html>
