@@ -166,6 +166,45 @@ async function complete(req: Request) {
   });
   return response({ok:true,status:"ready",publication_locked:true,publishing_enabled:false});
 }
+async function adopt(req: Request) {
+  await requireOwner(req);
+  const input=await req.json().catch(()=>( {} )) as Json;
+  const id=validatedJobId(input.preview_id);
+  const previews=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,variant,status,poster_path&id=eq."+id+"&limit=1");
+  const preview=previews?.[0];
+  if(!preview || preview.status!=="ready" || !preview.poster_path) {
+    return response({error:"Premium preview must be ready before manual adoption"},409);
+  }
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&limit=1&id=eq."+preview.job_id);
+  const job=jobs?.[0];
+  if(!job || !job.publication_locked || !["review","awaiting_images","generating","pending"].includes(job.status)) {
+    return response({error:"Approved or published jobs cannot be modified"},409);
+  }
+  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,image_path,status,review_notes&job_id=eq."+preview.job_id+"&slide_number=eq.1&limit=1");
+  const slide=slides?.[0];
+  if(!slide || !["pending","uploaded","rejected","error"].includes(slide.status)) {
+    return response({error:"Portada is approved or being rendered; change refused"},409);
+  }
+  if(slide.image_path && slide.image_path!==preview.poster_path) {
+    await admin("/rest/v1/dropec_creative_slide_versions?on_conflict=job_id,slide_number,image_path",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify({job_id:preview.job_id,slide_number:1,image_path:slide.image_path,
+        previous_status:slide.status,review_notes:slide.review_notes||null}),
+    });
+  }
+  const updated=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq."+slide.status,{
+    method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({
+      image_path:preview.poster_path,status:"uploaded",
+      review_notes:"Portada premium experimental, variante "+preview.variant+". Comprueba producto, precio y texto antes de aprobar.",
+      render_error:null,render_after:null,render_started_at:null,updated_at:new Date().toISOString(),
+    }),
+  });
+  if(!Array.isArray(updated)||updated.length!==1)return response({error:"Portada was concurrently updated"},409);
+  await admin("/rest/v1/dropec_creative_jobs?id=eq."+preview.job_id,{
+    method:"PATCH",body:JSON.stringify({status:"review",publication_locked:true,caption_reviewed:false,updated_at:new Date().toISOString()}),
+  });
+  return response({ok:true,adopted_into_slide:1,publication_locked:true,publishing_enabled:false});
+}
 async function failed(req: Request) {
   await requireRunner(req);
   const input=await req.json().catch(() => ({})) as Json;
@@ -195,6 +234,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET" && path.endsWith("/status"))return await status(req);
     if(req.method==="POST" && path.endsWith("/claim"))return await claim(req);
     if(req.method==="POST" && path.endsWith("/complete"))return await complete(req);
+    if(req.method==="POST" && path.endsWith("/adopt"))return await adopt(req);
     if(req.method==="POST" && path.endsWith("/failed"))return await failed(req);
     return response({error:"Not found"},404);
   } catch(e) {
