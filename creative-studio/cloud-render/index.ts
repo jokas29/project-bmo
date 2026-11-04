@@ -133,6 +133,23 @@ function photo(im: Image,source: Image,top: number,height: number,width=900) {
   rounded(im,90,top,width,height,42,color("#FFFFFF"));
   im.composite(p,90+Math.round((width-p.width)/2),top+Math.round((height-p.height)/2));
 }
+async function ensureCaption(job: any) {
+  if (clean(job.caption_draft,2000)) return;
+  const product=clean(job.product_name,110);
+  const slides=Array.isArray(job.prompt_bundle?.slides)?job.prompt_bundle.slides:[];
+  const opener=clean(slides.find((x:any)=>Number(x.slide)===1)?.headline||"Descubre un producto para tu hogar",130);
+  const price=Number(job.product_price);
+  const tags=["#DropEC","#Ecuador","#Hogar"];
+  const lower=product.toLowerCase();
+  if(/ajo|cocina|ingredientes|picadora/.test(lower)) tags.push("#Cocina");
+  if(/mueble|herramienta|mover/.test(lower)) tags.push("#Organizacion");
+  let caption=opener+"\n\n"+product+".\n";
+  if(Number.isFinite(price)&&price>0) caption+="Precio referencial de catálogo: $"+price.toFixed(2)+" (sujeto a confirmación).\n";
+  caption+="Consulta disponibilidad y costo de envío para tu ciudad antes de pagar.\n\nEscríbenos por mensaje privado para solicitar una cotización.\n\n"+tags.join(" ");
+  await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id+"&caption_draft=is.null",{
+    method:"PATCH",body:JSON.stringify({caption_draft:caption,hashtags:tags,caption_reviewed:false,updated_at:new Date().toISOString()})
+  });
+}
 async function compose(job: any, number: number) {
   const W=1080,H=1350;
   const slides=Array.isArray(job.prompt_bundle?.slides)?job.prompt_bundle.slides:[];
@@ -225,7 +242,7 @@ async function autoQueueOne() {
 }
 async function processOne(autoSelect=true) {
   await recoverStale();
-  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,product_name,product_price,source_image_url,prompt_bundle,status&status=eq.generating&order=created_at.asc&limit=15");
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,product_name,product_price,source_image_url,prompt_bundle,caption_draft,status&status=eq.generating&order=created_at.asc&limit=15");
   for(const job of jobs) {
     const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,render_after,render_attempts&job_id=eq."+job.id+"&order=slide_number.asc");
     const pending=slides.find((s:any)=>s.status==="pending" && !s.image_path && (!s.render_after || new Date(s.render_after).getTime()<=Date.now()));
@@ -234,6 +251,7 @@ async function processOne(autoSelect=true) {
     if(!Array.isArray(acquired)||!acquired.length) continue;
     const attempts=Number(pending.render_attempts||0)+1;
     try {
+      await ensureCaption(job);
       const {data,warning}=await compose(job,Number(pending.slide_number));
       const path=job.id+"/auto/slide-"+pending.slide_number+"-"+Date.now()+".jpg";
       await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:data});
