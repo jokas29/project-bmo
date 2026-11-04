@@ -37,6 +37,13 @@
   <div class="row" style="justify-content:flex-start"><button class="primary" id="autogenerate">Generar carrusel automáticamente</button><button id="refreshcloud">Actualizar progreso</button><button id="rebuildcloud">Regenerar desde la foto actual</button></div>
   <small id="cloudstate">Las diapositivas permanecen privadas para revisión; no se envían a redes.</small>
  </div>
+ <div class="bridge" id="premiumlab">
+  <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
+  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Requiere una GPU gratuita externa configurada; si no está disponible, no se sustituyen las imágenes actuales ni se cobra una API.</p>
+  <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
+  <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
+  <div class="cards" id="premiumpreviews"></div>
+ </div>
  <div class="bridge"><div class="row"><h2 style="margin:0">Recepción desde Mac (respaldo opcional)</h2><span class="tag">Experimental · $0</span></div><p class="muted">Una carpeta vigilada en tu Mac recibirá las imágenes generadas en ChatGPT. Después de instalar el puente, guarda los cuatro PNG en <code>~/Downloads/DropEC-Creativos/Entrada</code>; el Mac enviará las imágenes a Supabase en orden.</p><div class="row"><button id="preparemac" class="primary">Preparar recepción automática para Mac</button><button id="syncimages">Comprobar imágenes recibidas</button></div><small>Instala y ejecuta el <a href="https://github.com/jokas29/project-bmo/blob/main/creative-studio/puente-mac.command" target="_blank" rel="noopener noreferrer">puente gratuito para Mac</a>. Este botón descargará un archivo de autorización temporal, válido por 2 horas, que el puente detecta. No compartas ese archivo. Nada se publica sin tu aprobación.</small></div><h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="panel stack"><div class="row"><h3 style="margin:0">Versiones anteriores</h3><button id="historybutton">Ver historial privado</button></div><div id="historylist" class="stack"></div></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
  <section id="guide" class="panel stack hide"><h2>Cómo utilizar este estudio</h2><p>1. Abre un producto y pulsa «Generar carrusel automáticamente»; un ejecutor en la nube prepara cada diapositiva desde la foto ORIGINAL, sin Mac.</p><p>2. Puedes cerrar la página y volver. El sistema reintenta errores transitorios y conserva las imágenes recibidas.</p><p>3. Revisa las cuatro diapositivas; aprueba o rechaza individualmente. Si la foto es de baja resolución verás un aviso de calidad.</p><p>4. ChatGPT sigue disponible para diseños especiales, sin control automático desde la web.</p><p class="notice">Todo se almacena de forma privada. Ningún botón inicia ventas ni publica en redes.</p><button id="guideback">Volver a productos</button></section>
 </div>
@@ -196,7 +203,7 @@ async function openJob(id){
  $("sourcefile").value="";
  $("sourcefile").onchange=async e=>{const file=e.target.files&&e.target.files[0];if(file)await uploadSource(file)};
  $("copyprompt").onclick=()=>copy(prompt(job,1));$("copyficha").onclick=()=>copy(ficha(job));$("sendchat").onclick=launchChat;
- await loadSlides();showGenerationState();
+ await loadSlides();showGenerationState();await refreshPremium(true);
 }
 async function uploadSource(file){
  if(!["image/png","image/jpeg","image/webp"].includes(file.type)){msg("La foto original debe ser PNG, JPG o WEBP.",true);return}
@@ -290,6 +297,59 @@ function showGenerationState(){
  $("autogenerate").disabled=["approved","ready_to_publish","archived"].includes(job.status)||(job.status==="generating"&&!errors);
  $("rebuildcloud").disabled=["approved","ready_to_publish","archived"].includes(job.status)||working>0;
 }
+
+const PREMIUM_API="/functions/v1/dropec-premium-scene";
+async function queuePremium(){
+ if(!job||!session)return;
+ const button=$("premiumqueue");button.disabled=true;
+ try{
+  const result=await api(PREMIUM_API+"/queue","POST",{job_id:job.id});
+  if(!result.ok)throw Error(result.error||"No fue posible crear la cola.");
+  msg(result.queued+" propuestas Premium preparadas. Nada se publica ni se sustituye.");
+  await refreshPremium(true);
+ }catch(e){msg("Premium: "+e.message,true)}
+ finally{button.disabled=false}
+}
+async function adoptPremium(preview){
+ if(!job||preview.status!=="ready")return;
+ if(!window.confirm("¿Usar esta propuesta como portada para revisión? Guardaremos la versión anterior. NO se publicará."))return;
+ try{
+  const result=await api(PREMIUM_API+"/adopt","POST",{preview_id:preview.id});
+  if(!result.ok)throw Error(result.error||"No se pudo adoptar la propuesta.");
+  msg("Portada Premium lista PARA REVISIÓN. Se conservó la anterior; no se publicó.");
+  await refreshCloud(true);await refreshPremium(true);
+ }catch(e){msg("No se adoptó: "+e.message,true)}
+}
+async function refreshPremium(silent=false){
+ if(!job||!session)return;
+ const holder=$("premiumpreviews"),state=$("premiumstate");
+ try{
+  const result=await api(PREMIUM_API+"/status?job_id="+encodeURIComponent(job.id));
+  if(!result.ok)throw Error(result.error||"No disponible.");
+  const previews=Array.isArray(result.previews)?result.previews:[];
+  holder.replaceChildren();
+  if(!previews.length){state.textContent="Sin propuestas aún. Para generar se requiere un Space GPU externo configurado.";return}
+  state.textContent=previews.filter(p=>p.status==="ready").length+" de "+previews.length+" propuestas disponibles. Publicación bloqueada.";
+  for(const p of previews){
+   const card=text("article",null,"card"),body=text("div",null,"card-body");
+   const label=["Portada A","Portada B","Escena editorial"][Number(p.variant)-1]||"Propuesta";
+   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando en GPU":p.status==="queued"?"En cola / esperando GPU":p.status==="needs_source"?"Requiere foto original de mayor calidad":"Revisión necesaria"));
+   if(p.poster_path&&p.status==="ready"){
+    const media=text("div",null,"card-media");media.style.height="280px";
+    const img=document.createElement("img");img.alt=label+" de prueba";media.append(img);card.append(media);
+    signed(p.poster_path).then(url=>img.src=url).catch(e=>body.append(text("small",e.message,"error")));
+    body.append(button("Ver / descargar",async()=>{try{window.open(await signed(p.poster_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}));
+    if(!["approved","ready_to_publish","archived"].includes(job.status)&&!slides.some(s=>s.slide_number===1&&["approved","rendering"].includes(s.status))){
+     body.append(button("Usar como portada para revisar",()=>adoptPremium(p),"primary"));
+    }
+   }
+   if(p.render_error)body.append(text("small",p.render_error,"muted"));
+   card.append(body);holder.append(card);
+  }
+  if(!silent)msg("Propuestas Premium actualizadas. Sin publicaciones.");
+ }catch(e){state.textContent="Laboratorio Premium no disponible: "+e.message;if(!silent)msg(e.message,true)}
+}
+
 async function queueCloud(){
  if(!job||!session)return;
  $("autogenerate").disabled=true;msg("Preparando carrusel en la nube…");
@@ -378,6 +438,7 @@ $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recov
 $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
 $("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);$("rebuildcloud").onclick=rebuildCloud;$("historybutton").onclick=showHistory;
 $("syncimages").onclick=()=>checkIncoming(false);
+$("premiumqueue").onclick=queuePremium;$("premiumrefresh").onclick=()=>refreshPremium(false);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
 $("approve").onclick=()=>{if(slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved"))updateJob("approved")};
