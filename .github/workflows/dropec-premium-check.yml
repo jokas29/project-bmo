@@ -1,0 +1,60 @@
+name: DropEC Premium — Security and Visual Compositor Checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'creative-studio/premium/**'
+      - 'creative-studio/index.html'
+      - '.github/workflows/dropec-premium-gpu.yml'
+      - '.github/workflows/dropec-premium-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify no GPU dependencies are needed by the CPU compositor
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          python -m unittest discover -s creative-studio/premium -p 'test_*.py' -v
+          python -m py_compile creative-studio/premium/runner.py creative-studio/premium/space/app.py
+      - name: Check staged UI JavaScript parsing and owner controls
+        run: |
+          node <<'JS'
+          const fs = require('node:fs')
+          const vm = require('node:vm')
+          const html = fs.readFileSync('creative-studio/index.html','utf8')
+          const script = html.match(/<script>([\s\S]*?)<\/script>/)
+          if (!script) throw new Error('Missing UI script')
+          new vm.Script(script[1])
+          for (const id of ['premiumqueue','premiumrefresh','premiumstate','premiumpreviews','slides']) {
+            if (!html.includes('id="'+id+'"')) throw new Error('Missing premium control: '+id)
+          }
+          for(const fn of ['queuePremium','adoptPremium','refreshPremium']) {
+            if (!script[1].includes('function '+fn+'(')) throw new Error('Missing handler '+fn)
+          }
+          const edge = fs.readFileSync('creative-studio/premium/edge/index.ts','utf8')
+          for(const x of ['jwtVerify','requireRunner','requireOwner','publishing_enabled:false','publication_locked:true','status:"uploaded"']){
+            if (!edge.includes(x)) throw new Error('Missing Edge security invariant: '+x)
+          }
+          if (/sb_secret_|SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'](?!["'])/.test(html)) {
+            throw new Error('Secret exposed in public HTML')
+          }
+          console.log('Private premium queue and browser code parse successfully.')
+          JS
+      - name: Type-check the staging-only Edge function
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check creative-studio/premium/edge/index.ts
