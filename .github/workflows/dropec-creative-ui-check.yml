@@ -1,0 +1,38 @@
+name: DropEC Creative Studio — Browser Code Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'creative-studio/index.html'
+      - '.github/workflows/dropec-creative-ui-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse UI JavaScript and check essential private controls
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const html = fs.readFileSync('creative-studio/index.html', 'utf8');
+          const script = html.match(/<script>([\s\S]*?)<\/script>/i);
+          if (!script) throw new Error('Missing inline UI script');
+          new vm.Script(script[1], {filename:'creative-studio/index.html'});
+          const ids = ['login','logout','dashboard','detail','slides','autogenerate','refreshcloud','autoqueue','autoconfigstatus','cloudstate','captiondraft','savecaption','copycaption','approve','ready'];
+          for (const id of ids) if (!html.includes('id="'+id+'"')) throw new Error('Missing UI element '+id);
+          for (const method of ['queueCloud','loadAutoConfig','toggleAutoConfig','refreshCloud','saveCaption','signed']) {
+            if (!script[1].includes('function '+method+'(')) throw new Error('Missing function '+method);
+          }
+          if (!html.includes('Sin publicación automática')) throw new Error('Missing publication lock notice');
+          if (/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/.test(html)) throw new Error('Forbidden secret in public HTML');
+          console.log('Creative Studio JavaScript parses; all automation controls present; no server secrets exposed.');
+          NODE
