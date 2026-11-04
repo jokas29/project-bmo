@@ -25,6 +25,12 @@
  </div>
  </section>
  <section id="detail" class="stack hide"><div class="row"><button id="back">← Volver</button><span id="detailstatus" class="tag"></span></div><div class="split"><div class="panel"><h2 id="jobtitle"></h2><p id="jobprice" class="muted"></p><img id="original" style="height:220px;max-width:100%;object-fit:contain;background:white;border-radius:12px;padding:12px" alt="Fotografía original del producto"><p id="originalmissing" class="notice hide">La imagen antigua de Dropi no carga. Sube aquí una fotografía auténtica descargada del producto en WooCommerce o Dropi.</p><p id="jobnotes" class="muted"></p><hr><label style="display:grid;gap:8px">Fotografía ORIGINAL del producto (PNG, JPG o WEBP; máximo 15 MB)<input id="sourcefile" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="downloadsource" disabled>Descargar imagen original para ChatGPT</button><small>La fotografía se guarda en un espacio privado. Este paso es distinto de subir diapositivas diseñadas.</small></div><div class="panel"><h2>Enviar trabajo a ChatGPT</h2><p class="muted">Preparamos la ficha completa del producto y las cuatro diapositivas. Un clic abre ChatGPT con el encargo prellenado cuando ese enlace funciona en tu sesión. También copiamos el texto como respaldo.</p><div class="stack"><button id="sendchat" class="primary">Preparar y abrir carrusel en ChatGPT</button><button id="copyficha">Copiar ficha completa</button><button id="copyprompt">Copiar solo portada</button></div><p class="muted" style="margin-top:15px">Referencia fotográfica opcional. Si hay una imagen real verificable, úsala; si no existe, ChatGPT podrá crear una composición conceptual.</p><small>La web no puede controlar un chat normal ni descargar automáticamente sus resultados mediante una conexión gratuita oficial.</small></div></div>
+ <div class="panel stack" id="socialcopy">
+  <div class="row"><h2 style="margin:0">Texto del post y hashtags</h2><span class="tag">Borrador privado</span></div>
+  <p class="muted">Se redacta automáticamente con datos conocidos del producto, sin inventar testimonios ni condiciones de envío. Revisa el precio y el texto antes de usarlo.</p>
+  <textarea id="captiondraft" rows="7" maxlength="2400" placeholder="El texto aparecerá cuando el generador procese el producto. Puedes editarlo y guardarlo."></textarea>
+  <div class="row" style="justify-content:flex-start"><button id="savecaption">Guardar texto</button><button id="copycaption" class="primary">Copiar texto</button></div>
+ </div>
  <div class="bridge" id="cloudautomate">
   <div class="row"><h2 style="margin:0">Generación automática en la nube</h2><span class="tag ok">Gratis · Sin Mac · Sin publicar</span></div>
   <p class="muted">Crea cuatro diapositivas 1080 × 1350 con el producto REAL, los textos guardados y una composición editorial DropEC. No inventa accesorios, descuentos ni envíos. Un ejecutor privado revisa la cola aproximadamente cada 5 minutos, incluso con esta página cerrada.</p>
@@ -173,7 +179,7 @@ function prompt(j,n){
 }
 async function copy(s){try{await navigator.clipboard.writeText(s);msg("Texto copiado al portapapeles.")}catch{msg("No se pudo copiar; comprueba permisos del navegador.",true)}}
 async function openJob(id){
- job=jobs.find(x=>x.id===id);if(!job)return;show("detail");$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";
+ job=jobs.find(x=>x.id===id);if(!job)return;show("detail");$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";$("captiondraft").value=job.caption_draft||"";
  const image=$("original"),missing=$("originalmissing"),dl=$("downloadsource");
  image.removeAttribute("src");missing.classList.add("hide");dl.disabled=true;
  image.onerror=()=>{image.classList.add("hide");missing.classList.remove("hide");dl.disabled=true};
@@ -265,6 +271,16 @@ async function checkIncoming(silent=false){
  finally{checkingIncoming=false}
 }
 
+
+async function saveCaption(){
+ if(!job)return;
+ const draft=$("captiondraft").value.trim();
+ if(!draft){msg("El texto no puede estar vacío.",true);return}
+ try{
+  await api("/rest/v1/dropec_creative_jobs?id=eq."+encodeURIComponent(job.id),"PATCH",{caption_draft:draft,caption_reviewed:false,updated_at:new Date().toISOString()});
+  job.caption_draft=draft;msg("Texto del post guardado de forma privada. No se publicará.");
+ }catch(e){msg("No pude guardar el texto: "+e.message,true)}
+}
 function showGenerationState(){
  if(!job)return;
  const count=slides.filter(x=>["uploaded","approved"].includes(x.status)).length;
@@ -287,8 +303,8 @@ async function queueCloud(){
 async function refreshCloud(silent=false){
  if(!job||!session)return;
  try{
-  const result=await api("/rest/v1/dropec_creative_jobs?select=status&id=eq."+encodeURIComponent(job.id)+"&limit=1");
-  if(Array.isArray(result)&&result.length){job.status=result[0].status;$("detailstatus").textContent=status(job.status)}
+  const result=await api("/rest/v1/dropec_creative_jobs?select=status,caption_draft&id=eq."+encodeURIComponent(job.id)+"&limit=1");
+  if(Array.isArray(result)&&result.length){job.status=result[0].status;job.caption_draft=result[0].caption_draft||"";$("detailstatus").textContent=status(job.status);if(document.activeElement!==$("captiondraft"))$("captiondraft").value=job.caption_draft}
   await loadSlides();showGenerationState();
   if(!silent)msg("Progreso actualizado. No se realizará ninguna publicación.");
  }catch(e){if(!silent)msg("Error consultando la cola: "+e.message,true)}
@@ -331,7 +347,7 @@ function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
 $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
-$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);
+$("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);
 $("syncimages").onclick=()=>checkIncoming(false);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
