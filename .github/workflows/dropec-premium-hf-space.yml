@@ -1,0 +1,50 @@
+name: DropEC Premium — Bootstrap free ZeroGPU Space
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'creative-studio/premium/space/**'
+      - 'creative-studio/premium/bootstrap_hf_space.py'
+      - '.github/workflows/dropec-premium-hf-space.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dropec-premium-free-space-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  zero-gpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DROPEC_HF_SPACE: ${{ vars.DROPEC_HF_SPACE }}
+      DROPEC_HF_TOKEN: ${{ secrets.DROPEC_HF_TOKEN }}
+    steps:
+      - name: Gate on explicit owner Space and secret
+        id: config
+        shell: bash
+        run: |
+          if [ -z "$DROPEC_HF_SPACE" ] || [ -z "$DROPEC_HF_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No HF account write authorized; skipping. Set DROPEC_HF_SPACE and DROPEC_HF_TOKEN once."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        if: steps.config.outputs.configured == 'true'
+        with:
+          python-version: '3.12'
+      - name: Install pinned HF Hub client
+        if: steps.config.outputs.configured == 'true'
+        run: python -m pip install --disable-pip-version-check --no-input huggingface_hub==0.36.0
+      - name: Create OR sync ZeroGPU only (never paid)
+        if: steps.config.outputs.configured == 'true'
+        run: python creative-studio/premium/bootstrap_hf_space.py
