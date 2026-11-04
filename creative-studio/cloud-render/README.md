@@ -9,7 +9,11 @@ This module is a **free, no-paid-image-API** fallback that composes four 1080×1
 - GitHub Actions: `.github/workflows/dropec-creative-cloud-render.yml`, GitHub OIDC authenticated and scheduled every five minutes (schedule timing is not guaranteed to the exact minute).
 - POST `/enqueue` is accepted only from the confirmed Creative Studio owner with a valid Supabase Auth session.
 - POST `/worker` is accepted only with GitHub Actions OIDC, restricted to this repository's `main` branch and the exact workflow path.
+- Automatic selection of eligible pending products is enabled with an owner-controlled pause switch and a maximum of three new carrusels per day.
 - The system selects a missing slide, leases it, renders one slide per request, saves it in private Supabase Storage, and marks it ready for human review.
+- Captions and hashtags are prepared from known product information. Owners can edit and save these private drafts.
+- Images with WebP sources are decoded with the pinned modern codec, while the proven compositor continues to render JPEG slides.
+- POST `/rebuild` requires owner authentication and preserves existing slide file paths in a private versions table before regenerating. Approval/publishing states cannot be rebuilt.
 - Failed renders retry with backoff. Old leases are recovered. Existing uploaded or approved images are **never** overwritten.
 - The Cloudfront product image host is allowlisted. Private originals under `storage://` are supported. If a source is missing or incompatible, a meaningful error is saved rather than inventing a product.
 - Low-resolution source photographs are warned about in the review UI; do not approve blurry results.
