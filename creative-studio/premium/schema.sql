@@ -32,7 +32,6 @@ create policy dropec_premium_previews_owner_read
   on public.dropec_premium_previews for select to authenticated
   using (
     (select auth.jwt()->>'email')='3diaz2000@gmail.com'
-    and (select auth.jwt()->>'email_verified')='true'
   );
 -- Only the authenticated Edge Function's service credential may INSERT/PATCH.
 -- A SELECT policy alone does not permit a browser to queue/approve anything.
