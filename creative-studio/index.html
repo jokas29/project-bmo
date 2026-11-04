@@ -17,6 +17,12 @@
  <div id="msg" role="status"></div>
  <section id="dashboard" class="stack"><div class="hero"><h1>Tu próxima publicación empieza aquí.</h1><p class="muted">Elige un producto, copia el prompt para ChatGPT, genera una diapositiva y vuelve para subirla y aprobarla.</p></div>
  <div id="stats" class="stats"></div><div class="row"><h2>Cola de productos</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
+ <div class="panel stack" style="margin-top:20px" id="cloudproof">
+  <div class="row"><h3 style="margin:0">Prueba de transferencia directa en la nube</h3><span class="tag">Archivo privado · No publicar</span></div>
+  <p class="muted">Una imagen técnica generada con ChatGPT se transfirió a Google Drive y a una tabla privada de Supabase, sin utilizar tu computadora. No es un carrusel ni una publicación.</p>
+  <div class="row" style="justify-content:flex-start"><button id="cloudproofbutton" class="primary">Ver imagen recibida en Supabase</button><small>Sin API de generación de pago.</small></div>
+  <div id="cloudproofoutput" role="status" class="stack"></div>
+ </div>
  </section>
  <section id="detail" class="stack hide"><div class="row"><button id="back">← Volver</button><span id="detailstatus" class="tag"></span></div><div class="split"><div class="panel"><h2 id="jobtitle"></h2><p id="jobprice" class="muted"></p><img id="original" style="height:220px;max-width:100%;object-fit:contain;background:white;border-radius:12px;padding:12px" alt="Fotografía original del producto"><p id="originalmissing" class="notice hide">La imagen antigua de Dropi no carga. Sube aquí una fotografía auténtica descargada del producto en WooCommerce o Dropi.</p><p id="jobnotes" class="muted"></p><hr><label style="display:grid;gap:8px">Fotografía ORIGINAL del producto (PNG, JPG o WEBP; máximo 15 MB)<input id="sourcefile" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="downloadsource" disabled>Descargar imagen original para ChatGPT</button><small>La fotografía se guarda en un espacio privado. Este paso es distinto de subir diapositivas diseñadas.</small></div><div class="panel"><h2>Enviar trabajo a ChatGPT</h2><p class="muted">Preparamos la ficha completa del producto y las cuatro diapositivas. Un clic abre ChatGPT con el encargo prellenado cuando ese enlace funciona en tu sesión. También copiamos el texto como respaldo.</p><div class="stack"><button id="sendchat" class="primary">Preparar y abrir carrusel en ChatGPT</button><button id="copyficha">Copiar ficha completa</button><button id="copyprompt">Copiar solo portada</button></div><p class="muted" style="margin-top:15px">Referencia fotográfica opcional. Si hay una imagen real verificable, úsala; si no existe, ChatGPT podrá crear una composición conceptual.</p><small>La web no puede controlar un chat normal ni descargar automáticamente sus resultados mediante una conexión gratuita oficial.</small></div></div>
  <div class="bridge"><div class="row"><h2 style="margin:0">Recepción desde Mac</h2><span class="tag">Experimental · $0</span></div><p class="muted">Una carpeta vigilada en tu Mac recibirá las imágenes generadas en ChatGPT. Después de instalar el puente, guarda los cuatro PNG en <code>~/Downloads/DropEC-Creativos/Entrada</code>; el Mac enviará las imágenes a Supabase en orden.</p><div class="row"><button id="preparemac" class="primary">Preparar recepción automática para Mac</button><button id="syncimages">Comprobar imágenes recibidas</button></div><small>Instala y ejecuta el <a href="https://github.com/jokas29/project-bmo/blob/main/creative-studio/puente-mac.command" target="_blank" rel="noopener noreferrer">puente gratuito para Mac</a>. Este botón descargará un archivo de autorización temporal, válido por 2 horas, que el puente detecta. No compartas ese archivo. Nada se publica sin tu aprobación.</small></div><h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
@@ -83,6 +89,25 @@ function photo(src){
 }
 function money(v){return v===null||v===undefined?"Precio por verificar":new Intl.NumberFormat("es-EC",{style:"currency",currency:"USD"}).format(Number(v))}
 function status(s){return ({pending:"Pendiente",prepared:"Preparado",generating:"Generando",awaiting_images:"Esperando imágenes",review:"En revisión",approved:"Aprobado",ready_to_publish:"Listo para publicación",archived:"Archivado"})[s]||s}
+async function showCloudProof(){
+ const b=$("cloudproofbutton"),target=$("cloudproofoutput");b.disabled=true;target.replaceChildren(text("p","Leyendo la imagen privada desde Supabase…","muted"));
+ try{
+   const id="413e3c84-4cb9-403f-904c-7235b59662d9";
+   const rows=await api("/rest/v1/dropec_creative_cloud_imports?select=file_name,mime_type,bytes&id=eq."+id+"&limit=1");
+   if(!Array.isArray(rows)||!rows.length)throw Error("El archivo no está disponible para esta cuenta.");
+   const item=rows[0],encoded=item.bytes;
+   if(typeof encoded!=="string"||!encoded.startsWith("\\x"))throw Error("El servidor devolvió un formato de imagen inesperado.");
+   const hex=encoded.slice(2);
+   if(hex.length>30000000||hex.length%2!==0||!/^[0-9a-f]+$/i.test(hex))throw Error("La imagen recibida no es válida.");
+   const bytes=new Uint8Array(hex.length/2);
+   for(let i=0;i<hex.length;i+=2)bytes[i/2]=parseInt(hex.slice(i,i+2),16);
+   if(bytes[0]!==137||bytes[1]!==80||bytes[2]!==78||bytes[3]!==71)throw Error("Los bytes no corresponden a PNG.");
+   const blob=new Blob([bytes],{type:"image/png"}),uri=URL.createObjectURL(blob);
+   const img=document.createElement("img");img.src=uri;img.alt="Archivo técnico generado en ChatGPT, transferido por Drive y recibido en Supabase";img.style.cssText="max-width:100%;width:min(560px,100%);height:auto;border-radius:14px;border:1px solid var(--line)";
+   target.replaceChildren(text("p","Transferencia comprobada: "+bytes.length.toLocaleString("es-EC")+" bytes recuperados de Supabase.","ok"),img,text("small","Imagen de prueba; esto no significa que ChatGPT pueda recibir solicitudes de generación automática desde la web.","muted"));
+ }catch(err){target.replaceChildren(text("p","No se pudo mostrar la prueba: "+err.message,"error"))}
+ finally{b.disabled=false}
+}
 async function loadJobs(){
  msg("Cargando productos…");
  try{jobs=await api("/rest/v1/dropec_creative_jobs?select=*&order=created_at.desc");renderJobs();msg("Contenido privado · No se publicará nada sin autorización.")}
@@ -252,7 +277,7 @@ async function rejectSlide(s){const why=promptUser("¿Qué debemos corregir en e
 function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
-$("search").oninput=renderJobs;$("filter").onchange=renderJobs;
+$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
 $("preparemac").onclick=prepareMac;
 $("syncimages").onclick=()=>checkIncoming(false);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
