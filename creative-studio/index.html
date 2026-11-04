@@ -16,7 +16,7 @@
  <header class="row" style="margin-bottom:21px"><div><div class="brand">Drop<span>EC</span> Creative Studio</div><small>Estudio de carruseles · Entorno privado de pruebas</small></div><div class="row"><span class="tag">Sin publicación automática</span><button id="help">Cómo usar</button><button id="logout">Cerrar sesión</button></div></header>
  <div id="msg" role="status"></div>
  <section id="dashboard" class="stack"><div class="hero"><h1>Tu próxima publicación empieza aquí.</h1><p class="muted">Elige un producto y genera su carrusel de cuatro diapositivas automáticamente en la nube. ChatGPT queda disponible para diseños personalizados. Todo se guarda como borrador privado.</p></div>
- <div id="stats" class="stats"></div><div class="row"><h2>Cola de productos</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="generating">Generando</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
+ <div class="panel row" style="margin-bottom:15px"><label style="display:flex;gap:10px;align-items:center"><input id="autoqueue" type="checkbox" style="width:20px;height:20px">Generar automáticamente los productos pendientes (máximo 3 por día)</label><small id="autoconfigstatus">Cargando configuración…</small></div><div id="stats" class="stats"></div><div class="row"><h2>Cola de productos</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="generating">Generando</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
  <div class="panel stack" style="margin-top:20px" id="cloudproof">
   <div class="row"><h3 style="margin:0">Prueba de transferencia directa en la nube</h3><span class="tag">Archivo privado · No publicar</span></div>
   <p class="muted">Una imagen técnica generada con ChatGPT se transfirió a Google Drive y a una tabla privada de Supabase, sin utilizar tu computadora. No es un carrusel ni una publicación.</p>
@@ -75,7 +75,7 @@ async function recover(){
 }
 async function enter(){
  if(!session){$("authbox").classList.remove("hide");$("workspace").classList.add("hide");return}
- try{const u=await request("/auth/v1/user");if((u.email||"").toLowerCase()!==MAIL)throw Error("Esta cuenta no está autorizada.");$("authbox").classList.add("hide");$("workspace").classList.remove("hide");show("dashboard");await loadJobs()}
+ try{const u=await request("/auth/v1/user");if((u.email||"").toLowerCase()!==MAIL)throw Error("Esta cuenta no está autorizada.");$("authbox").classList.add("hide");$("workspace").classList.remove("hide");show("dashboard");await loadJobs();await loadAutoConfig()}
  catch(e){if(/JWT|expired|401|token/i.test(e.message)&&await refresh()){return enter()}store(null);$("authbox").classList.remove("hide");$("workspace").classList.add("hide");authMsg("Inicia sesión para acceder. "+e.message,true)}
 }
 async function api(path,method="GET",body=null,headers={}){
@@ -113,6 +113,24 @@ async function showCloudProof(){
    target.replaceChildren(text("p","Transferencia comprobada: "+bytes.length.toLocaleString("es-EC")+" bytes recuperados de Supabase.","ok"),img,text("small","Imagen de prueba; esto no significa que ChatGPT pueda recibir solicitudes de generación automática desde la web.","muted"));
  }catch(err){target.replaceChildren(text("p","No se pudo mostrar la prueba: "+err.message,"error"))}
  finally{b.disabled=false}
+}
+
+async function loadAutoConfig(){
+ try{
+  const rows=await api("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
+  if(!rows?.length)throw Error("No se encontró la configuración de la cola.");
+  $("autoqueue").checked=!!rows[0].enabled;
+  $("autoconfigstatus").textContent=rows[0].enabled?"Automatización privada activa · Sin publicar":"Generación automática pausada";
+ }catch(e){$("autoqueue").disabled=true;$("autoconfigstatus").textContent="No se pudo consultar la configuración: "+e.message;}
+}
+async function toggleAutoConfig(){
+ const checkbox=$("autoqueue"),value=checkbox.checked;checkbox.disabled=true;
+ try{
+  await api("/rest/v1/dropec_creative_automation_settings?singleton=eq.true","PATCH",{enabled:value,updated_at:new Date().toISOString()});
+  $("autoconfigstatus").textContent=value?"Automatización privada activada":"Generación automática pausada";
+  msg(value?"La cola procesa borradores automáticamente; ninguna publicación será enviada.":"La cola de nuevos trabajos quedó pausada.");
+ }catch(e){checkbox.checked=!value;msg("No pude cambiar la configuración: "+e.message,true)}
+ finally{checkbox.disabled=false}
 }
 async function loadJobs(){
  msg("Cargando productos…");
@@ -312,7 +330,7 @@ async function rejectSlide(s){const why=promptUser("¿Qué debemos corregir en e
 function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
-$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
+$("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
 $("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);
 $("syncimages").onclick=()=>checkIncoming(false);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
