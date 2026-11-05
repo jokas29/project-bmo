@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from compositor import (
     W,H,BG,INK,PANEL,THEME,load_font,_editorial_background,
     _headline_layout,_fit_product,_check_subject,SubjectExtractionError,
-    build_poster,jpeg_bytes
+    build_poster,build_carousel_slide,_fit_carousel_subject,jpeg_bytes
 )
 
 def synthetic_cutout(rect=(200,120,820,886),size=(1024,1024)):
@@ -58,6 +58,77 @@ class CoverOnlyTests(unittest.TestCase):
                           "load_font(318","_tracked(","_money("):
             self.assertNotIn(forbidden,source)
         self.assertTrue(jpeg_bytes(ad).startswith(bytes((255,216,255))))
+
+    def test_cover_headline_is_centered_for_short_and_long_names(self):
+        original=ImageDraw.ImageDraw.text
+        for title in ("Máquina de ajo eléctrica","Organizador portátil",
+                      "Juego de herramientas para mover muebles"):
+            with self.subTest(name=title):
+                calls=[]
+                def spy(draw,xy,value,*args,**kwargs):
+                    calls.append((xy,value,kwargs.get("font")))
+                    return original(draw,xy,value,*args,**kwargs)
+                with patch.object(ImageDraw.ImageDraw,"text",spy):
+                    self.poster(title=title)
+                self.assertGreater(len(calls),0)
+                for (x,y),value,font in calls:
+                    bbox=ImageDraw.Draw(Image.new("RGB",(W,H))).textbbox(
+                        (0,0),value,font=font)
+                    visual_center=x+(bbox[2]+bbox[0])/2
+                    self.assertLess(abs(visual_center-W/2),2)
+
+    def test_premium_carousel_has_three_distinct_consistent_interior_images(self):
+        outputs=[]
+        for number in (2,3,4):
+            with self.subTest(slide=number):
+                result=build_carousel_slide(
+                    self.scene,self.reference,"Máquina de ajo eléctrica",
+                    25,number,subject=self.cutout)
+                self.assertEqual(result.size,(W,H))
+                self.assertTrue(jpeg_bytes(result).startswith(bytes((255,216,255))))
+                outputs.append(result.tobytes())
+        self.assertEqual(len(set(outputs)),3)
+
+    def test_carousel_title_and_price_are_audited_not_fabricated(self):
+        original=ImageDraw.ImageDraw.text
+        expected={
+            2:["MÍRALO","DE CERCA"],
+            3:["OTRA","PERSPECTIVA"],
+            4:["¿TE","INTERESA?","SOLICITA TU COTIZACIÓN","$25.00"]
+        }
+        for number in (2,3,4):
+            with self.subTest(number=number):
+                painted=[]
+                def spy(draw,xy,value,*args,**kwargs):
+                    painted.append(value)
+                    return original(draw,xy,value,*args,**kwargs)
+                with patch.object(ImageDraw.ImageDraw,"text",spy):
+                    build_carousel_slide(self.scene,self.reference,
+                        "Máquina de ajo eléctrica",25,number,subject=self.cutout)
+                self.assertEqual(painted,expected[number])
+        painted=[]
+        def spy(draw,xy,value,*args,**kwargs):
+            painted.append(value)
+            return original(draw,xy,value,*args,**kwargs)
+        with patch.object(ImageDraw.ImageDraw,"text",spy):
+            build_carousel_slide(self.scene,None,"Producto conceptual",
+                                None,4,reference_mode="conceptual",
+                                subject=self.cutout)
+        self.assertNotIn("$25.00",painted)
+
+    def test_carousel_foreground_is_complete_in_all_aspect_ratios(self):
+        for number in (2,3,4):
+            for rect in ((90,370,935,660),(380,60,650,960),
+                         (180,160,850,870)):
+                with self.subTest(number=number,bounds=rect):
+                    item=_check_subject(synthetic_cutout(rect))
+                    image,x,y=_fit_carousel_subject(
+                        item,number,230,184 if number==4 else 38)
+                    self.assertGreaterEqual(x,15)
+                    self.assertLessEqual(x+image.width,W-15)
+                    self.assertGreaterEqual(y,253)
+                    self.assertLessEqual(y+image.height,
+                        H-(184 if number==4 else 38))
 
     def test_price_does_not_modify_cover(self):
         a=self.poster(price=25)
