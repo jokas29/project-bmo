@@ -1,259 +1,265 @@
-"""DropEC Premium: a single editorial advertising composition, not stacked panels.
+"""DropEC universal commercial poster, based on editorial_theme.json.
 
-A blurred, color-graded continuation of the FLUX scene fills the entire 4:5
-canvas. The WHOLE generated scene is contained as a feather-blended foreground;
-photographs from the catalogue are only inference references, never pasted
-ads. Typography and price are laid out over genuine negative space, with no
-opaque header, photo rectangle or footer card. Owner review remains mandatory.
+Cloudflare/HF generates only a physical product photograph on a clean neutral
+background. A local CPU segmentation model removes that background, and Pillow
+composes one coherent 1080x1350 advertisement. This is NOT photo-on-poster
+pasting: the product's transparent silhouette overlaps the actual branded
+organic shapes and casts a natural soft shadow. No hardcoded product IDs.
+No public publishing, approval, invented claims or fabricated contact data.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+import json
 import math
+from typing import Optional
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
+THEME = json.loads(Path(__file__).with_name("editorial_theme.json").read_text(encoding="utf-8"))
 W, H = 1080, 1350
-LIME = (204, 255, 82)
-WHITE = (250, 247, 255)
-PLUM = (24, 8, 48)
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+assert THEME["formato"]["ancho"] == W and THEME["formato"]["alto"] == H
 
-# These are bounds for content placement, not boundaries between panels.
-HERO_TOP, HERO_BOTTOM = 310, 1190
-MODES = frozenset(("catalog_reference", "promotional_reference",
-                   "low_resolution_reference", "conceptual", "legacy_overlay"))
+def rgb(value: str) -> tuple[int, int, int]:
+    value = value.lstrip("#")
+    if len(value) != 6:
+        raise ValueError("Bad configured theme color")
+    return tuple(int(value[i:i+2], 16) for i in (0, 2, 4))
 
-# Every variant works for every product. Different palette/alignment gives each
-# concept a considered editorial identity instead of recoloring a fixed card.
-STYLES = {
-    1: dict(tint=(30, 9, 60), pale=False, align="left"),
-    2: dict(tint=(33, 10, 48), pale=False, align="left"),
-    3: dict(tint=(236, 229, 225), pale=True, align="left"),
-}
+PRIMARY=rgb(THEME["estilo"]["colores"]["principal"])
+LIME=rgb(THEME["estilo"]["colores"]["secundario"])
+WHITE=rgb(THEME["estilo"]["fondo"])
+MODES=frozenset(("catalog_reference","promotional_reference",
+                 "low_resolution_reference","conceptual","legacy_overlay"))
+FONT_BOLD="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT_REGULAR="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
+class SubjectExtractionError(RuntimeError):
+    """Fail closed: do not store an unprofessional or unverifiable cutout."""
 
 
-def load_font(size: int, bold: bool = True) -> ImageFont.ImageFont:
+def load_font(size: int, bold: bool=True) -> ImageFont.ImageFont:
     try:
-        return ImageFont.truetype(FONT_BOLD if bold else FONT_REGULAR, size)
+        return ImageFont.truetype(FONT_BOLD if bold else FONT_REGULAR,size)
     except OSError:
         return ImageFont.load_default()
 
 
 def source_quality(image: Image.Image) -> None:
-    """Photo references are only hints; this does not verify product identity."""
-    if min(image.size) < 160:
-        raise ValueError(f"source resolution too small: {image.width}x{image.height}")
-    if max(image.size) > 9000:
-        raise ValueError("source resolution invalid")
-    if max(image.size) / max(1, min(image.size)) > 4:
-        raise ValueError("source aspect ratio invalid")
+    if min(image.size) < 160 or max(image.size) > 9000:
+        raise ValueError("Source reference size outside safe bounds")
+    if max(image.size)/max(1,min(image.size)) > 4:
+        raise ValueError("Source reference aspect ratio unsupported")
 
 
-def fit_lines(text: str, width: int, draw: ImageDraw.ImageDraw,
-              max_size: int = 74, max_lines: int = 3) -> tuple[list[str], ImageFont.ImageFont]:
-    """Fit the exact product name without clipping, inventing or abbreviating."""
-    cleaned = " ".join(str(text).split())
-    if not cleaned or len(cleaned) > 120:
-        raise ValueError("product name missing or too long")
-    for size in range(max_size, 29, -2):
-        font = load_font(size)
-        lines: list[str] = []
-        line = ""
-        for word in cleaned.split():
-            candidate = (line + " " + word).strip()
-            if line and draw.textbbox((0, 0), candidate, font=font)[2] > width:
-                lines.append(line)
-                line = word
-            else:
-                line = candidate
-        if line:
-            lines.append(line)
-        if len(lines) <= max_lines and all(
-            draw.textbbox((0, 0), part, font=font)[2] <= width for part in lines
-        ):
-            return lines, font
-    raise ValueError("product title cannot fit without clipping")
+def _bezier(a,b,c,d,steps=28):
+    out=[]
+    for i in range(steps+1):
+        t=i/steps; u=1-t
+        out.append((u*u*u*a[0]+3*u*u*t*b[0]+3*u*t*t*c[0]+t*t*t*d[0],
+                    u*u*u*a[1]+3*u*u*t*b[1]+3*u*t*t*c[1]+t*t*t*d[1]))
+    return out
 
 
-def _full_scene_geometry(scene: Image.Image, top: int, bottom: int
-                         ) -> tuple[int, int, int, int]:
-    """Contain EVERY source pixel within the visual field; never use cover-crop."""
-    if min(scene.size) < 512:
-        raise ValueError("generated scene too small")
-    height = bottom - top
-    if height < 630:
-        raise ValueError("title leaves insufficient height for complete product")
-    ratio = min((W - 24) / scene.width, height / scene.height)
-    width = max(1, int(round(scene.width * ratio)))
-    scaled_height = max(1, int(round(scene.height * ratio)))
-    return ((W - width)//2, top + (height - scaled_height)//2,
-            width, scaled_height)
+def _mask_shape(points, size=(W,H), oversample=2):
+    mask=Image.new("L",(size[0]*oversample,size[1]*oversample),0)
+    draw=ImageDraw.Draw(mask)
+    draw.polygon([(round(x*oversample),round(y*oversample)) for x,y in points],fill=255)
+    return mask.resize(size,Image.Resampling.LANCZOS)
 
 
-def _background(scene: Image.Image, variant: int) -> Image.Image:
-    """A smooth full-frame extension, avoiding the gray fog of the old design.
-
-    Use real colors from the generation: tint only lightly in the middle,
-    and blend gradients progressively where text must remain legible.
-    """
-    style = STYLES[variant]
-    source = ImageOps.exif_transpose(scene).convert("RGB")
-    full = ImageOps.fit(source, (W,H), method=Image.Resampling.LANCZOS)
-    full = full.filter(ImageFilter.GaussianBlur(38)).convert("RGBA")
-    # Keep the source palette recognizable; old overlay at alpha 157-192
-    # washed the advertising photograph into a large muddy rectangle.
-    alpha = 28 if style["pale"] else 40
-    full = Image.alpha_composite(
-        full, Image.new("RGBA",(W,H),(*style["tint"],alpha))
-    )
-    wash=Image.new("RGBA",(W,H),(0,0,0,0))
-    d=ImageDraw.Draw(wash,"RGBA")
-    shade=(249,245,243) if style["pale"] else (13,4,30)
-    for y in range(H):
-        # The two smooth vignettes fade naturally through the entire
-        # background. They are NOT opaque header and footer sections.
-        top=max(0.0, (630-y)/630)
-        bottom=max(0.0, (y-900)/(H-900))
-        opacity=min(232,int(215*top*top + 207*bottom*bottom))
-        if opacity:
-            d.line((0,y,W,y),fill=(*shade,opacity))
-    return Image.alpha_composite(full,wash)
+def _organic_shapes(variant: int) -> Image.Image:
+    """User's #FFFFFF canvas with olive upper-left and lime lower-right blobs."""
+    if variant not in (1,2,3):
+        raise ValueError("Variant outside approved designs")
+    art=Image.new("RGBA",(W,H),(*WHITE,255))
+    # The variants keep original distribution but alter the curve slightly,
+    # avoiding a product-specific hard-coded illustration or stacked sections.
+    drift=(variant-2)*24
+    upper=[(-40,-40),(840+drift,-40)]
+    upper+=_bezier((840+drift,-40),(1010,110),(775+drift,325),(600+drift,464))
+    upper+=_bezier((600+drift,464),(445,594),(225,589),(-40,612))
+    upper.extend([(-40,-40)])
+    ink=Image.new("RGBA",(W,H),(*PRIMARY,255))
+    art.paste(ink,(0,0),_mask_shape(upper))
+    lower=[(W+40,790+drift)]
+    lower+=_bezier((W+40,790+drift),(894,864),(831,970),(708,1060))
+    lower+=_bezier((708,1060),(582,1160),(543,1222),(496,H+40))
+    lower.extend([(W+40,H+40),(W+40,790+drift)])
+    lime=Image.new("RGBA",(W,H),(*LIME,255))
+    art.paste(lime,(0,0),_mask_shape(lower))
+    return art
 
 
-def _feathered_foreground(scene: Image.Image, poster: Image.Image,
-                          top: int, bottom: int) -> tuple[int, int, int, int]:
-    """Blend ALL of the FLUX scene onto the same background without a frame.
-
-    Feathering touches only outer scene margins; the prompt reserves at least
-    12% around the actual product. If FLUX itself crops the product, no
-    compositor can reconstruct missing physical parts.
-    """
-    source = ImageOps.exif_transpose(scene).convert("RGB")
-    x, y, w, h = _full_scene_geometry(source, top, bottom)
-    foreground = source.resize((w, h), Image.Resampling.LANCZOS).convert("RGBA")
-    margin = max(24, min(w, h)//23)
-    mask = Image.new("L", (w,h), 0)
-    d = ImageDraw.Draw(mask)
-    d.rectangle((margin,margin,w-margin-1,h-margin-1),fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(max(16,margin//2)))
-    # The foreground interior remains 100% real model output.
-    poster.paste(foreground, (x,y), mask)
-    return x, y, w, h
+@lru_cache(maxsize=1)
+def _segmentation_session():
+    """Download/load free local u2netp once; never use a paid segmentation API."""
+    from rembg import new_session
+    return new_session("u2netp")
 
 
-def _text(draw: ImageDraw.ImageDraw, xy: tuple[int,int], text: str,
-          font: ImageFont.ImageFont, fill: tuple[int,int,int],
-          shadow: tuple[int,int,int], align: str = "left") -> None:
-    # A tiny glyph shadow improves legibility without any opaque text panel.
-    x,y=xy
-    draw.text((x+2,y+3), text, font=font, fill=(*shadow,95), anchor=None)
-    draw.text((x,y), text, font=font, fill=(*fill,255), anchor=None)
+def _extract_subject(scene: Image.Image) -> Image.Image:
+    """Extract a product cutout on CPU; fail closed if model is unavailable."""
+    try:
+        from rembg import remove
+        segmented=remove(ImageOps.exif_transpose(scene).convert("RGB"),
+                         session=_segmentation_session()).convert("RGBA")
+    except Exception as exc:
+        raise SubjectExtractionError("Open-source background removal unavailable") from exc
+    return _check_subject(segmented)
 
 
-def _price_font(draw: ImageDraw.ImageDraw, value: float) -> tuple[str,ImageFont.ImageFont]:
-    title=f"${value:,.2f}"
-    for size in range(80,37,-2):
+def _check_subject(cutout: Image.Image) -> Image.Image:
+    """Reject empty, truncated, huge-background or tiny-subject masks."""
+    product=cutout.convert("RGBA")
+    if min(product.size)<512:
+        raise SubjectExtractionError("Subject photograph is too small")
+    a=product.getchannel("A")
+    binary=a.point(lambda v: 255 if v>=72 else 0)
+    bbox=binary.getbbox()
+    if not bbox:
+        raise SubjectExtractionError("No physical product isolated")
+    l,t,r,b=bbox
+    w,h=product.size
+    # Do not present cropped edges as full, authentic product photographs.
+    margin=min(l,t,w-r,h-b)
+    if margin < min(w,h)*0.012:
+        raise SubjectExtractionError("Physical product touches image boundary")
+    area=(r-l)*(b-t)/(w*h)
+    if area < 0.035 or area>0.87 or (r-l)<w*0.16 or (b-t)<h*0.19:
+        raise SubjectExtractionError("Ambiguous or implausible product isolation")
+    return product.crop((max(0,l-8),max(0,t-8),min(w,r+8),min(h,b+8)))
+
+
+def _fit_product(subject: Image.Image, variant: int):
+    """Large center-right foreground without intersecting the left CTA."""
+    max_width=660
+    max_height=760
+    scale=min(max_width/subject.width,max_height/subject.height)
+    w=max(1,round(subject.width*scale))
+    h=max(1,round(subject.height*scale))
+    image=subject.resize((w,h),Image.Resampling.LANCZOS)
+    center_x=(728,730,726)[variant-1]
+    center_y=(780,780,780)[variant-1]
+    x=round(center_x-w/2)
+    y=round(center_y-h/2)
+    if x<393 or x+w>W-15 or y<375 or y+h>1165:
+        raise SubjectExtractionError("Product silhouette does not fit safe editorial area")
+    return image,x,y
+
+
+def _wrap_title(text: str, draw: ImageDraw.ImageDraw):
+    title=" ".join(text.split())
+    if not title or len(title)>120:
+        raise ValueError("Product title missing or too long")
+    for size in range(73,31,-2):
         font=load_font(size)
-        if draw.textbbox((0,0),title,font=font)[2] <= 875:
-            return title,font
-    raise ValueError("price does not fit canvas")
+        lines=[]; row=""
+        for word in title.split():
+            next_row=(row+" "+word).strip()
+            if row and draw.textbbox((0,0),next_row,font=font)[2]>530:
+                lines.append(row); row=word
+            else: row=next_row
+        if row:lines.append(row)
+        line_h=round(size*1.13)
+        if len(lines)<=4 and 156+len(lines)*line_h < 520 and all(
+            draw.textbbox((0,0),line,font=font)[2] <= 530 for line in lines
+        ):
+            return lines,font,line_h
+    raise ValueError("Product name cannot fit verified text field")
+
+
+def _draw_brand(draw: ImageDraw.ImageDraw):
+    drop_font=load_font(46)
+    draw.text((72,46),"Drop",font=drop_font,fill=WHITE)
+    offset=draw.textbbox((0,0),"Drop",font=drop_font)[2]
+    draw.text((72+offset,46),"EC",font=drop_font,fill=LIME)
 
 
 def build_poster(scene: Image.Image, original: Optional[Image.Image],
                  product_name: str, price: Optional[float], variant: int, *,
-                 reference_mode: str = "catalog_reference") -> Image.Image:
-    """Generate unified 1080x1350 artwork with safe product/text placement."""
-    if variant not in STYLES:
-        raise ValueError("invalid variant")
-    if reference_mode not in MODES:
-        raise ValueError("invalid reference mode")
-    if original is not None:
-        source_quality(original)
-    if not isinstance(product_name,str):
-        raise ValueError("missing product name")
+                 reference_mode: str="catalog_reference",
+                 subject: Optional[Image.Image]=None) -> Image.Image:
+    """A single branded visual composition built from one isolated product."""
+    if variant not in (1,2,3):raise ValueError("Unknown variant")
+    if reference_mode not in MODES:raise ValueError("Unapproved reference mode")
+    if original is not None:source_quality(original)
+    if not isinstance(product_name,str):raise ValueError("Invalid name")
     if price is not None:
         price=float(price)
-        if not math.isfinite(price) or price<=0:
-            raise ValueError("invalid price")
+        if not math.isfinite(price) or price<=0:raise ValueError("Invalid price")
 
-    style=STYLES[variant]
-    poster=_background(scene,variant)
-    draw=ImageDraw.Draw(poster,"RGBA")
-    title_lines,font=fit_lines(product_name,945,draw,82 if variant!=3 else 77)
-    spacing=int(getattr(font,"size",62)*1.17)
-    title_y=143 if variant!=3 else 153
-    title_bottom=title_y+len(title_lines)*spacing
-    hero_top=max(HERO_TOP,title_bottom+20)
-    # The hero and its 12%-clearance foreground must remain above all pricing.
-    _full_scene_geometry(scene,hero_top,HERO_BOTTOM)
+    art=_organic_shapes(variant)
+    dr=ImageDraw.Draw(art)
+    _draw_brand(dr)
+    lines,font,line_h=_wrap_title(product_name,dr)
+    for idx,line in enumerate(lines):
+        dr.text((69,150+idx*line_h),line,font=font,fill=WHITE)
 
-    text_color=(36,13,62) if style["pale"] else WHITE
-    shadow=(248,248,248) if style["pale"] else (8,3,24)
-    accent=(91,38,148) if style["pale"] else LIME
+    # Only reliable catalogue data may appear here; no model-generated claims,
+    # placeholder WhatsApp number, fake address or brand promises.
+    if subject is None:subject=_extract_subject(scene)
+    else:subject=_check_subject(subject)
+    product,x,y=_fit_product(subject,variant)
 
-    # A product must be the single hero. Do not add giant cropped watermark
-    # letters behind it: they create stray 'Dr' shapes and destroy hierarchy.
-    _feathered_foreground(scene,poster,hero_top,HERO_BOTTOM)
-    draw=ImageDraw.Draw(poster,"RGBA")
-    # Brand/wordmark floats in the top negative space, no pill or header stripe.
-    _text(draw,(62,35),"DropEC",load_font(49),accent,shadow)
-    small_label="TIENDA ONLINE"
-    label_font=load_font(20,False)
-    label_width=draw.textbbox((0,0),small_label,font=label_font)[2]
-    _text(draw,(W-label_width-62,56),small_label,label_font,text_color,shadow)
+    shadow=Image.new("RGBA",(W,H),(0,0,0,0))
+    shade=Image.new("L",product.size,0)
+    shade.paste(product.getchannel("A"))
+    shade=shade.filter(ImageFilter.GaussianBlur(27)).point(lambda v: int(v*.31))
+    shadow_product=Image.new("RGBA",product.size,(*PRIMARY,0))
+    shadow_product.putalpha(shade)
+    shadow.alpha_composite(shadow_product,(x+12,y+18))
+    art=Image.alpha_composite(art,shadow)
+    art.alpha_composite(product,(x,y))
+    dr=ImageDraw.Draw(art)
 
-    for index,line in enumerate(title_lines):
-        width=draw.textbbox((0,0),line,font=font)[2]
-        pos_x=(W-width-64) if style["align"]=="right" else 64
-        # These lines are all above the contained foreground, never on product.
-        _text(draw,(pos_x,title_y+index*spacing),line,font,text_color,shadow)
+    # Angled CTA, deliberately left of the foreground object's safe zone.
+    cta="SOLICITA TU COTIZACIÓN"
+    button=[(70,918),(338,918),(370,942),(370,994),(338,1016),(70,1016)]
+    dr.polygon(button,fill=LIME)
+    for size in range(22,14,-1):
+        f=load_font(size)
+        if dr.textbbox((0,0),cta,font=f)[2] <= 278:break
+    else:raise ValueError("CTA exceeds configured button")
+    dr.text((82,955),cta,font=f,fill=PRIMARY)
 
-    # Price and CTA share the SAME continuous canvas. No footer card, border,
-    # opaque rectangle or line divides text from image.
-    note_font=load_font(22,False)
-    price_label="PRECIO DE CATÁLOGO" if price is not None else "CONSULTA DISPONIBILIDAD"
-    right=style["align"]=="right"
-    def x_for(t: str,f: ImageFont.ImageFont):
-        tw=draw.textbbox((0,0),t,font=f)[2]
-        return W-66-tw if right else 66
-    _text(draw,(x_for(price_label,note_font),1198),price_label,note_font,text_color,shadow)
-    if price is None:
-        amount,amount_font="Solicita información",load_font(36)
+    if price is not None:
+        dr.text((72,1111),"PRECIO DE CATÁLOGO",font=load_font(22,False),fill=PRIMARY)
+        amount=f"${price:,.2f}"
+        for fs in range(70,35,-2):
+            pf=load_font(fs)
+            if dr.textbbox((0,0),amount,font=pf)[2]<350:
+                break
+        else:raise ValueError("Price is too wide")
+        dr.text((69,1144),amount,font=pf,fill=PRIMARY)
     else:
-        amount,amount_font=_price_font(draw,price)
-    _text(draw,(x_for(amount,amount_font),1223),amount,amount_font,accent,shadow)
-    cta="Solicita tu cotización  ·  Envío por confirmar"
-    cta_font=load_font(22,False)
-    _text(draw,(x_for(cta,cta_font),1306),cta,cta_font,text_color,shadow)
+        dr.text((72,1154),"CONSULTA DISPONIBILIDAD",font=load_font(22),fill=PRIMARY)
 
     if reference_mode=="conceptual" or original is None:
-        marker="IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO"
-        marker_font=load_font(15,False)
-        # Keep the notice visible but non-obstructing; position in price margin.
-        _text(draw,(x_for(marker,marker_font),1161),marker,marker_font,text_color,shadow)
-    return poster.convert("RGB")
+        disclosure="IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO"
+        dr.text((68,1295),disclosure,font=load_font(15,False),fill=PRIMARY)
+
+    return art.convert("RGB")
 
 
 def jpeg_bytes(image: Image.Image) -> bytes:
-    result=BytesIO()
-    image.save(result,"JPEG",quality=91,optimize=True,subsampling=0)
-    data=result.getvalue()
-    if not (15000<=len(data)<=7*1024*1024):
-        raise ValueError("poster JPEG byte length out of bounds")
+    buf=BytesIO()
+    image.save(buf,format="JPEG",quality=93,optimize=True,subsampling=0)
+    data=buf.getvalue()
+    if not(15000<=len(data)<=7*1024*1024):
+        raise ValueError("JPEG payload outside private staging bounds")
     return data
 
 
 def render_to_file(scene_path: str, original_path: Optional[str], product: str,
                    price: Optional[float], variant: int, output: str,
-                   reference_mode: str = "catalog_reference") -> str:
+                   reference_mode: str="catalog_reference") -> str:
     with Image.open(scene_path) as scene:
         if original_path:
-            with Image.open(original_path) as original:
-                data=jpeg_bytes(build_poster(scene,original,product,price,variant,
+            with Image.open(original_path) as source:
+                data=jpeg_bytes(build_poster(scene,source,product,price,variant,
                                              reference_mode=reference_mode))
         else:
             data=jpeg_bytes(build_poster(scene,None,product,price,variant,

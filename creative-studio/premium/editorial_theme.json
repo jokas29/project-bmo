@@ -1,0 +1,39 @@
+{
+  "tipo": "publicidad_de_producto",
+  "formato": {"ancho":1080,"alto":1350,"orientacion":"vertical","proporcion":"4:5"},
+  "estilo": {
+    "diseno": "moderno, minimalista y comercial",
+    "calidad": "premium",
+    "fondo": "#FFFFFF",
+    "colores": {
+      "principal": "#29340A",
+      "secundario": "#ADE500",
+      "texto_claro": "#FFFFFF",
+      "texto_oscuro": "#29340A"
+    },
+    "tipografia": {"familia":"sans-serif","titulo":"bold","descripcion":"regular","boton":"bold"}
+  },
+  "composicion": {
+    "fondo_superior": {"tipo":"forma_organica","color":"#29340A","posicion":"superior_izquierda","bordes":"curvos y redondeados","tamano":"grande"},
+    "fondo_inferior": {"tipo":"forma_organica","color":"#ADE500","posicion":"inferior_derecha","bordes":"curvos y redondeados","tamano":"grande"},
+    "producto_visual": {"posicion":"centro_derecha","escala":"grande","perspectiva":"tres cuartos","estilo":"fotografia de producto realista","iluminacion":"suave de estudio","sombras":"realistas y difusas","superposicion":"delante de las formas organicas"}
+  },
+  "textos": {
+    "nombre_producto": {"contenido":"nombre_del_catalogo","posicion":"superior_izquierda","color":"#FFFFFF","tamano":"grande","peso":"bold","alineacion":"izquierda"},
+    "descripcion_producto": {"contenido":"solo_descripcion_verificada","posicion":"debajo_del_nombre","color":"#FFFFFF","tamano":"mediano","peso":"regular"},
+    "boton": {"contenido":"SOLICITA TU COTIZACIÓN","fondo":"#ADE500","color_texto":"#29340A","posicion":"izquierda_centro_inferior","forma":"rectangulo_con_esquinas_diagonales","peso":"bold"},
+    "contacto": {"telefono":null,"direccion":null,"nota":"No fabricar datos de contacto"},
+    "precio": {"contenido":"precio_del_catalogo_si_existe","color":"#29340A"}
+  },
+  "instrucciones": {
+    "mantener_diseno_original":true,
+    "mantener_distribucion":true,
+    "mantener_colores":true,
+    "mantener_producto_visual":true,
+    "mantener_boton_y_contacto":true,
+    "no_agregar_textos_adicionales":true,
+    "resultado":"publicidad comercial integrada de una sola composicion",
+    "producto_dinamico":true,
+    "publicacion_automatica":false
+  }
+}

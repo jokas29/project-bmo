@@ -99,12 +99,15 @@ class UniversalReferenceTests(unittest.TestCase):
         self.assertNotIn("input_image_0",observed["request"]["files"])
         self.assertIn("CONCEPTUAL",observed["request"]["files"]["prompt"][1])
         self.assertIn("AT LEAST 6% background clearance",observed["request"]["files"]["prompt"][1])
+        self.assertIn("#E8E8E8",observed["request"]["files"]["prompt"][1])
         self.assertNotIn("data",observed["request"])
 
     def test_produce_marks_no_source_as_conceptual(self):
         p=preview()
         p.update({"processed":True,"original_url":None,"price":None})
-        with patch("cloudflare_runner.generate_scene",return_value=Image.new("RGB",(900,1125),(34,20,65))):
+        synthetic_subject=Image.new("RGBA",(450,750),(220,45,62,255))
+        with patch("cloudflare_runner.generate_scene",return_value=Image.new("RGB",(900,1125),(232,232,232))), \
+             patch("compositor._extract_subject",return_value=synthetic_subject):
             data,mode=produce(p,"a"*32,"test")
         self.assertEqual(mode,"conceptual")
         self.assertTrue(data.startswith(bytes([255,216,255])))
