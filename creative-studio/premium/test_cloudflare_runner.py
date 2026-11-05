@@ -61,6 +61,24 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("data",observed["kwargs"])
         self.assertEqual(observed["kwargs"]["headers"]["Authorization"],"Bearer fake-token")
         self.assertFalse(observed["kwargs"]["allow_redirects"])
+    def test_private_regeneration_uses_fresh_seed_without_different_product(self):
+        class SeedSession:
+            calls=[]
+            def post(self,url,**kwargs):
+                self.calls.append(kwargs["files"]["seed"][1])
+                return MockResponse()
+        session=SeedSession()
+        first=preview()
+        first["generation_nonce"]="b58c6d6c-25f2-4c01-9b64-2036ec83d5a1"
+        second=dict(first,generation_nonce="2a7ba84b-8ee9-4a35-abf7-2bce41ac896c")
+        generate_scene(first,self.source,"a"*32,"test",session=session)
+        generate_scene(first,self.source,"a"*32,"test",session=session)
+        generate_scene(second,self.source,"a"*32,"test",session=session)
+        self.assertEqual(session.calls[0],session.calls[1])
+        self.assertNotEqual(session.calls[0],session.calls[2])
+        with self.assertRaises(ValueError):
+            generate_scene(dict(first,generation_nonce="bad"),self.source,"a"*32,"test",session=session)
+
     def test_carousel_claim_selects_usage_and_benefits_scene_instead_of_cutout(self):
         observed=[]
         class Session:

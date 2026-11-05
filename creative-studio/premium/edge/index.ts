@@ -147,7 +147,7 @@ async function claim(req: Request) {
       }),
     });
     if(!Array.isArray(acquired)||!acquired.length)continue;
-    return response({ok:true,processed:true,preview_id:preview.id,variant:preview.variant,prompt:preview.prompt,
+    return response({ok:true,processed:true,preview_id:preview.id,variant:preview.variant,generation_nonce:crypto.randomUUID(),prompt:preview.prompt,
       product_name:clean(job.product_name,130),price:job.product_price,original_url:source,
       original_available:!!source,publication_locked:true,conceptual_review_required:!source});
   }
@@ -435,7 +435,7 @@ async function claimCarousel(req: Request) {
       candidate && !/[\\d$%]/.test(candidate) && !/garantiz|gratis|milagro|cura|descuento/i.test(candidate)
       ? candidate:null;
     return response({ok:true,processed:true,carousel:true,slide_number:number,
-      slide_id:item.id,preview_id:item.id,variant,
+      slide_id:item.id,preview_id:item.id,variant,generation_nonce:crypto.randomUUID(),
       prompt:prompt(job.product_name,variant),
       product_name:clean(job.product_name,130),price:job.product_price,
       slide_headline:number===4?null:heading,slide_benefits:benefitItems,
