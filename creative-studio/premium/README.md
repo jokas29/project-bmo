@@ -53,10 +53,14 @@ preview/job keeps its publication lock.
   `DROPEC_HF_SPACE=your-huggingface-username/dropec-flux2-pilot` and the
   **secret** `DROPEC_HF_TOKEN` with write access scoped to that account.
   Do not send the token in chat, in the website or in code.
-* GitHub's `DropEC Premium — Bootstrap free ZeroGPU Space` workflow can then
-  **create and upload** the private Space automatically under the exact owner
-  account; subsequent source changes sync automatically. It requests **only**
-  `SpaceHardware.ZERO_A10G` (ZeroGPU). It never requests paid hardware.
+* GitHub's `DropEC Premium — Bootstrap free ZeroGPU Space` workflow
+  checks eligibility **once daily at 06:17 UTC** after initial setup,
+  can create and upload the private Space automatically under the exact owner
+  account, and syncs later source changes. The initial HTTP 402 account-age
+  restriction becomes a non-failing **skip** with the queue preserved; the
+  next daily run checks again. This does not bypass Hugging Face eligibility.
+  It requests **only** `SpaceHardware.ZERO_A10G` (ZeroGPU), refuses to
+  modify existing paid-hardware Spaces and never requests paid hardware.
 * Free hosting eligibility requires a verified HF email and account in good
   standing older than 30 days; otherwise HF may reject creation. We do not
   change the billing plan or use a paid alternative.
