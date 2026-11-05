@@ -33,7 +33,7 @@ function benefitsFromSupplier(raw:unknown):string[]{
   for(const rawItem of snippets){
     const v=clean(rawItem.split(/\n|🎁|👥|🚀|💬|✅/u)[0],66);
     if(v.length<8||v.length>60||/[$%\d]{5,}/.test(v)||
-       /\b(garantiz|milagro|cura|sin esfuerzo|en segundos|sin riesgos|no tóxic|eco.friendly|durader|segur|no se decolora|resultados profesionales|mejores precios|stock|mayorista|recaudo|envío gratis|24 horas|ahorra tiempo)\b/i.test(v))continue;
+       /\b(garantiz|milagro|cura|sin esfuerzo|en segundos|sin riesgos|no tóxic|eco.friendly|durader\\w*|segur\\w*|alta calidad|no se decolora|resultados profesionales|mejores precios|stock|mayorista|recaudo|envío gratis|24 horas|ahorra tiempo|ahorro total|no usa cables|siempre|nunca|estimula la memoria|aprendizaje garantizado)\b/i.test(v))continue;
     if(items.some(x=>x.toLowerCase()===v.toLowerCase()))continue;
     items.push(v.toUpperCase());
     if(items.length===3)break;
