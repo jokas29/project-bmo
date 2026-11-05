@@ -53,10 +53,12 @@ lista y pulsar **Crear carrusel Premium de 4 diapositivas**:
   quedan fuera del compositor heredado que pegaba el anuncio original.
 - El mismo GitHub Action gratuito, autenticado por OIDC, reinterpreta el
   objeto con FLUX.2 y `rembg` y compone una imagen distinta para cada
-  interior: **«MÍRALO DE CERCA»**, **«OTRA PERSPECTIVA»** y
-  **«¿TE INTERESA?»**. Son mensajes genéricos revisables, sin añadir
-  funciones o beneficios ficticios. La cuarta diapositiva puede mostrar
-  precio y cotización solo desde datos existentes en el catálogo.
+  interior en tres escenas de narrativa visual diferenciada:
+  **2) uso en contexto realista con persona** conservando manos y entorno,
+  **3) imagen contextual y tres consejos legibles**, y **4) producto completo,
+  precio del catálogo y mensaje de contacto** sin inventar cuentas o teléfonos.
+  No se añaden beneficios técnicos, promesas de resultados ni instrucciones
+  inexistentes. La escena de uso es ilustrativa y requiere revisión humana.
 - Si falta imagen original, la pieza se marca como conceptual en notas de
   revisión, fuera de la portada. Los materiales no se aprueban solos.
 - Los cuatro JPG tienen la misma proporción editorial 2:3 para revisión;
@@ -104,3 +106,13 @@ tildes, precio omitido, las tres variantes cinematográficas con profundidad
 lumínica, nombres de distintas categorías, escala del producto y recorte. Los workflows de CI verifican
 que ambos ejecutores instalan la fuente oficial validada, que la
 segmentación es gratuita y que se mantiene la seguridad de staging/OIDC.
+
+
+## Storyboard narrativo (noviembre de 2026)
+
+- La portada elegida mantiene nombre centrado en Anton y producto íntegro, sin precio.
+- La diapositiva 2 usa una escena FLUX con persona, contexto y uso plausible, preservados sin segmentación de silueta.
+- La diapositiva 3 combina un contexto diferente y tres tarjetas dibujadas por Pillow; acepta consejos de prompt_bundle.slides[slide=3].tips revisables o respaldo prudente por categoría.
+- La diapositiva 4 mantiene producto íntegro, precio de catálogo cuando esté disponible, mensaje de contacto y aviso de disponibilidad por confirmar; no inventa un número de teléfono.
+- El propietario puede recrear solo diapositivas 2–4 con la portada actual, archivando fotos previas y sin permitir carreras con renders ni cambios de aprobación.
+- El proceso sigue bloqueado para publicación; revisar manos, mecanismo, seguridad, apariencia del artículo, contenido de los tips y precio antes de aprobar.
