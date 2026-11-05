@@ -98,7 +98,7 @@ class UniversalReferenceTests(unittest.TestCase):
         self.assertIn("files",observed["request"])
         self.assertNotIn("input_image_0",observed["request"]["files"])
         self.assertIn("CONCEPTUAL",observed["request"]["files"]["prompt"][1])
-        self.assertIn("BOTTOM 82%",observed["request"]["files"]["prompt"][1])
+        self.assertIn("AT LEAST 12% background clearance",observed["request"]["files"]["prompt"][1])
         self.assertNotIn("data",observed["request"])
 
     def test_produce_marks_no_source_as_conceptual(self):
