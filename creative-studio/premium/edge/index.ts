@@ -261,8 +261,9 @@ async function prepareCarousel(req: Request) {
   if(!cover || cover.status!=="ready" || !cover.poster_path) return response({error:"Elige una portada Premium terminada"},409);
   const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&limit=1&id=eq."+cover.job_id);
   const job=jobs?.[0];
-  if(!job || job.publication_locked!==true || !["review","awaiting_images"].includes(job.status)) {
-    return response({error:"Solo trabajos privados en revisión pueden generar interiores Premium"},409);
+  if(!job || job.publication_locked!==true ||
+     !["review","awaiting_images","generating"].includes(job.status)) {
+    return response({error:"Solo trabajos privados sin aprobación pueden generar interiores Premium"},409);
   }
   const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,review_notes,render_error&job_id=eq."+job.id+"&order=slide_number.asc");
   if(slides.length!==4 || slides.some((x:any)=>x.status==="approved" || x.status==="rendering")) {
