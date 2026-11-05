@@ -61,7 +61,7 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("data",observed["kwargs"])
         self.assertEqual(observed["kwargs"]["headers"]["Authorization"],"Bearer fake-token")
         self.assertFalse(observed["kwargs"]["allow_redirects"])
-    def test_carousel_claim_selects_usage_and_tips_scene_instead_of_cutout(self):
+    def test_carousel_claim_selects_usage_and_benefits_scene_instead_of_cutout(self):
         observed=[]
         class Session:
             def post(self,url,**kwargs):
@@ -75,7 +75,7 @@ class ModelTests(unittest.TestCase):
         item["slide_number"]=4
         generate_scene(item,self.source,"a"*32,"test",session=Session())
         self.assertIn("LIFESTYLE PHOTO",observed[0])
-        self.assertIn("USEFUL TIPS BACKDROP",observed[1])
+        self.assertIn("THREE PRODUCT BENEFITS PHOTO BACKDROP",observed[1])
         self.assertIn("ENTIRE PHYSICAL PRODUCT",observed[2])
         self.assertNotIn("NO props, no floating ingredients, no hands",observed[0])
         self.assertNotEqual(observed[0],observed[1])
