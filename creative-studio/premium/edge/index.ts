@@ -375,9 +375,9 @@ async function ingestSelectedProducts(req:Request) {
       continue;
     }
     const hashtags=["#DropEC","#Ecuador"];
-    const caption=name+"\\n\\nPrecio de catálogo $"+price.toFixed(2)+
-      " (sujeto a confirmación).\\nConsulta stock y costo de envío para tu ciudad antes de pagar."+
-      "\\nEscríbenos por mensaje para una cotización.\\n\\n"+hashtags.join(" ");
+    const caption=name+"\n\nPrecio de catálogo $"+price.toFixed(2)+
+      " (sujeto a confirmación).\nConsulta stock y costo de envío para tu ciudad antes de pagar."+
+      "\nEscríbenos por mensaje para una cotización.\n\n"+hashtags.join(" ");
     const data={
       id,woo_product_id:woo,dropi_product_id:dropi,product_name:name,product_price:price,
       source_image_url:photo,product_notes:"Ficha comercial previamente aprobada en WooCommerce. Beneficios declarados por proveedor; validar antes de publicar.",
@@ -454,8 +454,8 @@ async function autoPrepareCarousel(req: Request) {
     const title=clean(job.product_name,120);
     const price=Number(job.product_price);
     const hashtags=["#DropEC","#Ecuador"];
-    const copy=title+"\\n\\n"+(price>0&&Number.isFinite(price)?"Precio de catálogo: $"+price.toFixed(2)+" (por confirmar).\\n":"")+
-      "Consulta disponibilidad y costo de envío antes de pagar. Escríbenos por mensaje para solicitar una cotización.\\n\\n"+hashtags.join(" ");
+    const copy=title+"\n\n"+(price>0&&Number.isFinite(price)?"Precio de catálogo: $"+price.toFixed(2)+" (por confirmar).\n":"")+
+      "Consulta disponibilidad y costo de envío antes de pagar. Escríbenos por mensaje para solicitar una cotización.\n\n"+hashtags.join(" ");
     const updatedJob=await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id+"&status=eq."+job.status+"&publication_locked=eq.true",{
       method:"PATCH",headers:{Prefer:"return=representation"},
       body:JSON.stringify({status:"review",publication_locked:true,
