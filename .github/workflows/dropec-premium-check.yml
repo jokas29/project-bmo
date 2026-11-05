@@ -7,6 +7,7 @@ on:
     paths:
       - 'creative-studio/premium/**'
       - 'creative-studio/index.html'
+      - 'creative-studio/cloud-render/index.ts'
       - '.github/workflows/dropec-premium-gpu.yml'
       - '.github/workflows/dropec-premium-cloudflare-ai.yml'
       - '.github/workflows/dropec-premium-check.yml'
@@ -184,6 +185,15 @@ jobs:
               !html.includes('Recrear interiores 2–4 (conservar portada)')) {
             throw new Error('Owner-only interior re-render or grounded copy pipeline missing')
           }
+          const classic = fs.readFileSync('creative-studio/cloud-render/index.ts','utf8')
+          if (!classic.includes('function isPremiumCarouselSlide(') ||
+              !classic.includes('if(slides.some(isPremiumCarouselSlide))') ||
+              !classic.includes('if(isPremiumCarouselSlide(s)) continue;') ||
+              !classic.includes('!isPremiumCarouselSlide(s) &&') ||
+              !script[1].includes('$("rebuildcloud").disabled=premiumActive') ||
+              !script[1].includes('$("autogenerate").disabled=premiumActive')) {
+            throw new Error('Classic renderer must not reset, claim or recover Premium carousel slides')
+          }
           console.log('Private premium queue and browser code parse successfully.')
           JS
       - name: Assert availability gate runs before private queue claim
@@ -211,3 +221,4 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno check creative-studio/premium/edge/index.ts
+      - run: deno check creative-studio/cloud-render/index.ts
