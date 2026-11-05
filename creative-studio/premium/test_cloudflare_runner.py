@@ -57,7 +57,7 @@ class ModelTests(unittest.TestCase):
         self.assertIn("input_image_0",observed["kwargs"]["files"])
         self.assertIn("prompt",observed["kwargs"]["files"])
         self.assertEqual(observed["kwargs"]["files"]["width"],(None,"1024"))
-        self.assertEqual(observed["kwargs"]["files"]["height"],(None,"1280"))
+        self.assertEqual(observed["kwargs"]["files"]["height"],(None,"1024"))
         self.assertNotIn("data",observed["kwargs"])
         self.assertEqual(observed["kwargs"]["headers"]["Authorization"],"Bearer fake-token")
         self.assertFalse(observed["kwargs"]["allow_redirects"])
