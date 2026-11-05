@@ -6,7 +6,11 @@ const BASE = Deno.env.get("SUPABASE_URL") || "https://ubxkqbnzdtgfvphwohzm.supab
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const OWNER = "3diaz2000@gmail.com";
 const REPOSITORY = "jokas29/project-bmo";
-const WORKFLOW = REPOSITORY + "/.github/workflows/dropec-premium-gpu.yml@refs/heads/main";
+// Only the two reviewed staging-only GitHub workflows may claim/upload previews.
+const ALLOWED_WORKFLOWS = new Set([
+  REPOSITORY + "/.github/workflows/dropec-premium-gpu.yml@refs/heads/main",
+  REPOSITORY + "/.github/workflows/dropec-premium-cloudflare-ai.yml@refs/heads/main",
+]);
 const BUCKET = "dropec-creative-private";
 const ORIGIN = "https://project-bmo.pages.dev";
 const CORS = { "Access-Control-Allow-Origin": ORIGIN, "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -52,7 +56,7 @@ async function requireRunner(req: Request) {
     issuer: "https://token.actions.githubusercontent.com", audience: "dropec-creative-premium",
   });
   if (payload.repository !== REPOSITORY || payload.ref !== "refs/heads/main" ||
-      payload.workflow_ref !== WORKFLOW || payload.event_name === "pull_request") throw new Error("Forbidden runner");
+      !ALLOWED_WORKFLOWS.has(String(payload.workflow_ref || "")) || payload.event_name === "pull_request") throw new Error("Forbidden runner");
 }
 function validatedJobId(value: unknown): string {
   const id=String(value || "");

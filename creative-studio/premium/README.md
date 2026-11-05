@@ -84,7 +84,56 @@ preview/job keeps its publication lock.
 
 Hugging Face Free ZeroGPU has a small daily GPU-time quota and uncertain queue
 priority, so continuous operation at three previews per product is **not
-guaranteed free**. No silent substitution with low-quality templates.
+guaranteed free**.
+
+## Better immediate provider: Cloudflare Workers AI Free / FLUX.2 Klein 4B
+
+Cloudflare hosts the **same FLUX.2 Klein 4B** model directly, including up to
+four reference images. It is accessible using its Workers AI REST API, avoiding
+Hugging Face's 30-day personal Space creation requirement and avoiding CPU load
+inside a separately deployed Cloudflare Worker.
+
+Cloudflare's Free Workers AI allocation (as documented October 2026) is
+**10,000 Neurons/day**, shared across the account's Workers AI usage. On
+Workers Free there is no metered overage: requests over the quota are refused.
+Do not switch Cloudflare to Workers Paid for this pilot. This is a usage quota,
+not a guarantee of unlimited free daily advertisements.
+
+One-time owner-only configuration in GitHub repository settings:
+
+1. Cloudflare dashboard → **Workers AI → Use REST API → Create Workers AI API
+   Token**. A narrowly scoped token requires Workers AI Read and Edit; do not
+   grant permissions to edit/deploy Workers, R2, DNS or billing.
+2. Save that token ONLY as repository Actions secret `DROPEC_CF_AI_TOKEN`.
+   Never paste the token into Creative Studio or this repository.
+3. Save the Cloudflare 32-character Account ID as repository Actions variable
+   `DROPEC_CF_ACCOUNT_ID` (non-secret identifier).
+4. GitHub Actions `DropEC Premium — Cloudflare FLUX.2 Free Inference` checks
+   model access hourly using a **read-only model-search** API call. Only an
+   authorized account and the exact available model allow an OIDC-protected
+   private staging preview to be claimed.
+5. The GitHub runner uses multipart `input_image_0` of **under 512×512**
+   pixels as identity reference, asks for a 1024×1280 synthetic scene, then
+   composes the **actual authentic original photo** plus deterministic Spanish
+   texts/prices via Pillow into a private 1080×1350 JPEG.
+6. The JPEG is sent back to the existing staging Supabase Edge Function.
+   Neither provider is allowed to publish to Meta, modify payment flows or
+   approve creative automatically. The owner must review and adopt it.
+
+The model is Apache 2.0 under Black Forest Labs' open-weight license; the
+Cloudflare hosted API still operates under Cloudflare service terms. If the
+Cloudflare token or account is not configured, or the model is inaccessible,
+the scheduled run is a **success/no-op with no queue claim**. It does not
+generate a fake placeholder or switch to a paid provider. Hugging Face ZeroGPU
+remains optional, automatically gated and waiting on account eligibility.
+
+Official references:
+- https://developers.cloudflare.com/changelog/post/2026-01-15-flux-2-klein-4b-workers-ai/
+- https://developers.cloudflare.com/workers-ai/platform/pricing/
+- https://developers.cloudflare.com/workers-ai/get-started/rest-api/
+- https://github.com/black-forest-labs/flux2
+
+ No silent substitution with low-quality templates.
 A timed-out preview retries up to 3 times, with a lease and backoff. A
 low-resolution or unapproved source remains `needs_source`. The existing
 image renderer and owner approval process remain functional independently.

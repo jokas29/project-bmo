@@ -1,0 +1,126 @@
+name: DropEC Premium — Cloudflare FLUX.2 Free Inference (staging only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 * * * *'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dropec-premium-free-inference
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ENDPOINT: https://ubxkqbnzdtgfvphwohzm.supabase.co/functions/v1/dropec-premium-scene
+      DROPEC_CF_ACCOUNT_ID: ${{ vars.DROPEC_CF_ACCOUNT_ID }}
+      DROPEC_CF_AI_TOKEN: ${{ secrets.DROPEC_CF_AI_TOKEN }}
+    steps:
+      - name: Skip unless account ID and scoped Workers AI token are configured
+        id: config
+        shell: bash
+        run: |
+          if [[ ! "$DROPEC_CF_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || [ -z "$DROPEC_CF_AI_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::DropEC Premium Workers AI not configured: queue remains intact."
+            echo "### Workers AI: not configured; no inference, no queue claim" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout staging compositor and free API runner
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Confirm FLUX.2 Klein 4B availability without inference
+        if: steps.config.outputs.configured == 'true'
+        id: preflight
+        run: |
+          python3 creative-studio/premium/check_cloudflare_ai.py
+          if ! grep -q '^ready=true$' "$GITHUB_OUTPUT"; then
+            echo "::notice::Workers AI unavailable; preserve all queued previews."
+            echo "### Workers AI: skipped due to missing/invalid access" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Obtain short-lived staging runner identity
+        if: steps.preflight.outputs.ready == 'true'
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-creative-premium"
+          token="$(curl --fail-with-body --silent --show-error --max-time 20 -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$url" | python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Lease one LOCKED private staging proposal
+        if: steps.preflight.outputs.ready == 'true'
+        id: claim
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/claim" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-claim.json
+          python3 <<'PY'
+          import json,os,re
+          v=json.load(open('/tmp/dropec-claim.json'))
+          if v.get('ok') is not True: raise SystemExit("Staging claim rejected")
+          done=v.get('processed') is True
+          if done and (v.get('publication_locked') is not True or not re.fullmatch(r'[0-9a-f-]{36}',v.get('preview_id',''))):
+              raise SystemExit("Invalid private preview identity or publication lock")
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              output.write("processed="+("true" if done else "false")+"\n")
+              if done: output.write("preview_id="+v['preview_id']+"\n")
+          print("Leased one private premium job" if done else "Nothing to generate; no AI inference used")
+          PY
+
+      - name: Install pinned CPU compositor dependencies
+        if: steps.claim.outputs.processed == 'true'
+        run: python3 -m pip install --disable-pip-version-check --no-input Pillow==11.3.0 requests==2.32.5
+
+      - name: Generate one real FLUX.2 scene and exact-text JPEG
+        if: steps.claim.outputs.processed == 'true'
+        id: generate
+        run: |
+          python3 creative-studio/premium/cloudflare_runner.py \
+            --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg 2>/tmp/dropec-gpu-error.log
+
+      - name: Save to private Supabase Storage (never Meta)
+        if: steps.generate.outcome == 'success'
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          PREVIEW_ID: ${{ steps.claim.outputs.preview_id }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 50 -X POST "$ENDPOINT/complete?preview_id=$PREVIEW_ID" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" \
+            --data-binary @/tmp/dropec-preview.jpg > /tmp/dropec-complete.json
+          python3 -c 'import json;assert json.load(open("/tmp/dropec-complete.json"))["status"]=="ready";print("Private preview stored; no public posting")'
+
+      - name: Record safe retry failure without publishing
+        if: failure() && steps.claim.outputs.processed == 'true'
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          PREVIEW_ID: ${{ steps.claim.outputs.preview_id }}
+        run: |
+          python3 <<'PY'
+          import json,os
+          try: message=open('/tmp/dropec-gpu-error.log').read().strip().splitlines()[-1][:220]
+          except Exception: message='Free AI unavailable or private staging upload failure'
+          json.dump({'preview_id':os.environ['PREVIEW_ID'],'error':message},open('/tmp/dropec-error.json','w'))
+          PY
+          curl --silent --show-error --max-time 25 -X POST "$ENDPOINT/failed" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            --data-binary @/tmp/dropec-error.json || true

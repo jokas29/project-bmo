@@ -8,6 +8,7 @@ on:
       - 'creative-studio/premium/**'
       - 'creative-studio/index.html'
       - '.github/workflows/dropec-premium-gpu.yml'
+      - '.github/workflows/dropec-premium-cloudflare-ai.yml'
       - '.github/workflows/dropec-premium-check.yml'
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
           python-version: '3.12'
       - name: Verify no GPU dependencies are needed by the CPU compositor
         run: |
-          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          python -m pip install --disable-pip-version-check Pillow==11.3.0 requests==2.32.5
           python -m unittest discover -s creative-studio/premium -p 'test_*.py' -v
           python -m py_compile creative-studio/premium/runner.py creative-studio/premium/space/app.py
       - name: Check staged UI JavaScript parsing and owner controls
@@ -44,7 +45,20 @@ jobs:
           for(const fn of ['queuePremium','adoptPremium','refreshPremium']) {
             if (!script[1].includes('function '+fn+'(')) throw new Error('Missing handler '+fn)
           }
+          const free = fs.readFileSync('.github/workflows/dropec-premium-cloudflare-ai.yml','utf8')
+          const ciPreflight = free.indexOf('name: Confirm FLUX.2 Klein 4B availability without inference')
+          const ciClaim = free.indexOf('name: Lease one LOCKED private staging proposal')
+          if (ciPreflight < 0 || ciClaim < 0 || ciPreflight >= ciClaim) {
+            throw new Error('Cloudflare free model preflight MUST precede preview claim')
+          }
+          const claimBlock = free.slice(ciClaim,free.indexOf('name: Install pinned CPU',ciClaim))
+          if (!claimBlock.includes("if: steps.preflight.outputs.ready == 'true'")) {
+            throw new Error('Private premium queue claim is not gated by free model availability')
+          }
           const edge = fs.readFileSync('creative-studio/premium/edge/index.ts','utf8')
+          if (!edge.includes('dropec-premium-cloudflare-ai.yml@refs/heads/main')) {
+            throw new Error('Cloudflare runner identity is missing from exact OIDC allowlist')
+          }
           for(const x of ['jwtVerify','requireRunner','requireOwner','publishing_enabled:false','publication_locked:true','status:"uploaded"']){
             if (!edge.includes(x)) throw new Error('Missing Edge security invariant: '+x)
           }
