@@ -28,9 +28,12 @@ class CoverOnlyTests(unittest.TestCase):
 
     def test_exact_dimensions_palette_heavy_open_font_and_accents(self):
         self.assertEqual((W,H),(736,1104))
-        self.assertEqual(BG,(245,243,239))
-        self.assertEqual(PANEL,(170,166,160))
-        self.assertEqual(INK,(17,17,17))
+        self.assertEqual(BG,(21,10,42))
+        self.assertEqual(PANEL,(66,28,115))
+        self.assertEqual(INK,(249,246,255))
+        self.assertEqual(THEME["composicion"]["ambiente"]["tipo"],
+                         "estudio_fotografico_editorial_virtual")
+        self.assertFalse(THEME["composicion"]["panel_central"]["habilitado"])
         self.assertEqual(THEME["estilo"]["tipografia"]["familia"],"Anton")
         self.assertEqual(THEME["textos"]["permitidos_en_portada"],["nombre_producto"])
         font=load_font(92)
@@ -71,13 +74,44 @@ class CoverOnlyTests(unittest.TestCase):
         html=Path(__file__).resolve().parents[1].joinpath("index.html").read_text()
         self.assertIn("IMAGEN ILUSTRATIVA",html)
 
-    def test_neutral_editorial_background_only_no_unwanted_graphic_text(self):
+    def test_violet_cinematic_background_has_depth_and_no_hard_panels(self):
+        images=[]
         for variant in (1,2,3):
             with self.subTest(variant=variant):
                 image=_editorial_background(variant)
-                self.assertEqual(image.getpixel((5,400))[:3],BG)
-                self.assertEqual(image.getpixel((W//2,400))[:3],PANEL)
-                self.assertEqual(image.getpixel((5,1050))[:3],BG)
+                self.assertEqual(image.size,(W,H))
+                # Background now has actual ambient illumination, not a
+                # plain color plus a flat gray vertical stripe.
+                dark=image.getpixel((8,14))[:3]
+                halo=image.getpixel((440,700))[:3]
+                self.assertNotEqual(dark,halo)
+                self.assertGreater(sum(halo),sum(dark)+20)
+                self.assertNotEqual(image.getpixel((8,550)),
+                                    image.getpixel((W-8,550)))
+                # Smooth background, not three hard horizontal rectangles.
+                a=image.getpixel((12,380))[:3]
+                b=image.getpixel((12,381))[:3]
+                self.assertLess(max(abs(k-v) for k,v in zip(a,b)),20)
+                images.append(image)
+        self.assertNotEqual(images[0].getpixel((440,700)),
+                            images[1].getpixel((440,700)))
+        self.assertNotEqual(images[1].getpixel((440,700)),
+                            images[2].getpixel((440,700)))
+
+    def test_graphic_details_live_behind_full_foreground_product(self):
+        for variant in (1,2,3):
+            with self.subTest(variant=variant):
+                base=_editorial_background(variant).convert("RGB")
+                poster=self.poster(variant)
+                self.assertNotEqual(base.getpixel((89,590)),
+                                    base.getpixel((98,590)))
+                d=ImageDraw.Draw(Image.new("RGB",(W,H)))
+                lines,font,h=_headline_layout("Máquina de ajo eléctrica",d)
+                fitted,x,y=_fit_product(_check_subject(self.cutout),variant,
+                                        52+len(lines)*h)
+                center=(x+fitted.width//2,y+fitted.height//2)
+                self.assertGreater(poster.getpixel(center)[0],180)
+                self.assertLess(poster.getpixel(center)[1],100)
 
     def test_large_uncropped_product_in_front_and_clear_of_title(self):
         for variant in (1,2,3):
