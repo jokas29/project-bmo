@@ -1,10 +1,9 @@
-"""DropEC Premium cover: product name + foreground product, nothing else.
+"""DropEC Premium cinematic cover: ONLY product name and foreground product.
 
-The layout is intentionally reusable for every SKU. An open-license, condensed
-Anton display face creates the expressive title. The whole FLUX product is
-cut out with local CPU rembg, then placed on a quiet neutral background, in
-front of the optional architectural gray strip. No promotional copy, edition
-index, price, wordmark, CTA, invented claims or contact in the JPEG.
+All SKUs share reusable violet studio art direction, with photographic depth,
+soft lights, dimensional shadows and decorative non-text elements BEHIND the
+extracted product. The heavy Anton headline stays the only rendered lettering.
+No price, logo, index, CTA, claims or invented product details.
 """
 from __future__ import annotations
 
@@ -85,17 +84,86 @@ def _extract_subject(scene: Image.Image):
     return _check_subject(output)
 
 
+def _lerp(first, second, t):
+    return tuple(round(a+(b-a)*t) for a,b in zip(first,second))
+
+
 def _editorial_background(variant: int):
-    """Just neutral paper and a quiet architectural strip; never textual art."""
-    if variant not in (1, 2, 3):
+    """Continuous art-directed studio with depth, never a split poster.
+
+    All shapes, lights, abstract props and reflections are BEHIND the product.
+    Uses only Pillow on a low-res light map: no network or second AI inference.
+    """
+    if variant not in (1,2,3):
         raise ValueError("Invalid variant")
-    art = Image.new("RGBA", (W, H), (*BG, 255))
-    d = ImageDraw.Draw(art)
-    if THEME["composicion"]["panel_central"]["habilitado"]:
-        x = {1: 329, 2: 317, 3: 345}[variant]
-        pw = round(W*.28)
-        d.rectangle((x, 0, x+pw, round(H*.92)), fill=(*PANEL, 255))
-    return art
+    spec=THEME["composicion"]["ambiente"]["variantes"][variant-1]
+    top,mid,bottom=(rgb(spec[k]) for k in ("superior","centro","inferior"))
+    halo=rgb(spec["halo"])
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+
+    # Tone-mapped continuous studio background: rich purple but not flat.
+    sw,sh=W//4,H//4
+    small=Image.new("RGB",(sw,sh))
+    pix=small.load()
+    for j in range(sh):
+        v=(j+.5)/sh
+        if v<.68:
+            base=_lerp(top,mid,v/.68)
+        else:
+            base=_lerp(mid,bottom,(v-.68)/.32)
+        for i in range(sw):
+            u=(i+.5)/sw
+            # Elliptical violet rim light, magenta fill and neon-lime bounce
+            # give commercial photographic dimensionality.
+            main=math.exp(-(((u-.57)/.47)**2+((v-.57)/.34)**2)*1.7)*.53
+            side=math.exp(-(((u-.12)/.35)**2+((v-.77)/.28)**2)*2.1)*.19
+            edge=math.exp(-(((u-1.02)/.26)**2+((v-.67)/.24)**2)*1.9)*.19
+            vignette=.99-.19*(((u-.5)/.66)**2+((v-.55)/.78)**2)
+            # Deterministic micrograin, avoids sterile flat vector gradients.
+            grain=(((i*73+j*109+variant*37)%23)-11)*.17
+            pix[i,j]=tuple(max(0,min(255,round(
+                (base[k]*(1-main-side-edge)+halo[k]*main+
+                 (102,29,145)[k]*side+lime[k]*edge)*vignette+grain
+            ))) for k in range(3))
+    image=small.resize((W,H),Image.Resampling.BICUBIC).convert("RGBA")
+
+    # Photographic-looking broad softboxes and a backlit stage. Each appears
+    # below, never on top of the alpha-extracted hero.
+    glow=Image.new("RGBA",(W,H),(0,0,0,0))
+    gd=ImageDraw.Draw(glow,"RGBA")
+    gd.ellipse((112,390,673,1025),fill=(*halo,77))
+    gd.ellipse((395,600,982,1030),fill=(*lime,26))
+    gd.ellipse((-145,815,460,1200),fill=(163,60,228,42))
+    image=Image.alpha_composite(image,glow.filter(ImageFilter.GaussianBlur(96)))
+
+    # Fine orbital lines and semi-transparent stage structures recall the
+    # first high-end editorial attempts, not an infographic/photo container.
+    graphics=Image.new("RGBA",(W,H),(0,0,0,0))
+    d=ImageDraw.Draw(graphics,"RGBA")
+    d.arc((-245,335,915,1410),start=205,end=336,fill=(*halo,58),width=3)
+    d.arc((-85,422,826,1310),start=196,end=337,fill=(242,224,255,35),width=2)
+    d.arc((280,275,1017,1105),start=145,end=252,fill=(*lime,42),width=2)
+    # Transparent vertical "glass" bevels subtly frame the lighting.
+    d.polygon([(0,575),(92,501),(152,975),(0,1032)],fill=(167,81,217,14))
+    d.polygon([(W,397),(W-86,482),(W-40,1006),(W,1042)],fill=(215,174,255,13))
+
+    # Studio horizon and reflected floor, with no hard horizontal band.
+    d.ellipse((28,1000,W-24,1153),outline=(238,194,255,45),width=2)
+    for n in range(8):
+        yy=936+n*22
+        alpha=max(4,23-n*3)
+        d.line((0,yy,W,yy+round(n*1.8)),fill=(238,214,255,alpha),width=1)
+    # Small abstract highlights echo the original lime/violet palette.
+    sparks=((89,590,5),(667,490,7),(694,750,3),(121,863,4),
+            (608,1060,5),(46,1040,3),(638,322,2))
+    for idx,(x,y,radius) in enumerate(sparks):
+        color=(*lime,155) if idx%3==0 else (239,200,255,95)
+        d.ellipse((x-radius,y-radius,x+radius,y+radius),fill=color)
+        if idx%3==0:
+            d.line((x-3*radius,y,x+3*radius,y),fill=(*lime,53),width=1)
+            d.line((x,y-3*radius,x,y+3*radius),fill=(*lime,53),width=1)
+    return Image.alpha_composite(image,graphics)
+
 
 
 def _headline_layout(name: str, draw: ImageDraw.ImageDraw):
@@ -150,14 +218,14 @@ def _fit_product(subject: Image.Image, variant: int, title_bottom: int = 270):
 
 
 def _shadow_product(subject: Image.Image, x: int, y: int):
-    alpha = subject.getchannel("A").filter(ImageFilter.GaussianBlur(19))
-    alpha = alpha.point(lambda value: round(value*.23))
+    alpha = subject.getchannel("A").filter(ImageFilter.GaussianBlur(26))
+    alpha = alpha.point(lambda value: round(value*.32))
     shadow = Image.new("RGBA", subject.size, (28, 27, 23, 0))
     shadow.putalpha(alpha)
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     # Keep shadow inside canvas without cropping the physical product itself.
     sx = min(x+6, W-subject.width)
-    sy = min(y+12, H-subject.height)
+    sy = min(y+18, H-subject.height)
     layer.alpha_composite(shadow, (sx, sy))
     return layer
 
@@ -184,9 +252,19 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     draw = ImageDraw.Draw(art)
     lines, font, line_height = _headline_layout(product_name, draw)
     title_y = 52
-    for index, line in enumerate(lines):
-        draw.text((39, title_y+index*line_height), line, font=font, fill=INK)
-    title_bottom = title_y + len(lines)*line_height
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    for index,line in enumerate(lines):
+        # Contrast-led typography; the final line can use the brand's lime
+        # accent, but no additional words or badges are drawn.
+        color=lime if len(lines)>1 and index==len(lines)-1 else INK
+        draw.text((39,title_y+index*line_height),line,font=font,fill=color)
+    title_bottom=title_y+len(lines)*line_height
+    # A restrained editorial stroke, not a separate section/CTA.
+    decoration=ImageDraw.Draw(art,"RGBA")
+    decoration.rounded_rectangle(
+        (39,title_bottom+7,149,title_bottom+11),
+        radius=2,fill=(*lime,203)
+    )
 
     product = _extract_subject(scene) if subject is None else _check_subject(subject)
     fitted, x, y = _fit_product(product, variant, title_bottom)
