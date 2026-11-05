@@ -114,7 +114,7 @@ def generate_scene(preview: dict,original: Image.Image | None,account: str,token
     multipart={
         "prompt":(None,prompt),
         "width":(None,"1024"),
-        "height":(None,"1280"),
+        "height":(None,"1024"),
         "seed":(None,str(seed)),
     }
     if original is not None:
