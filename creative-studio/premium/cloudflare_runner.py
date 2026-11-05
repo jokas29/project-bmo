@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 import requests
 from PIL import Image, ImageOps, UnidentifiedImageError
 from compositor import build_poster,build_carousel_slide,jpeg_bytes,source_quality
-from creative_brief import classify_reference, scene_prompt
+from creative_brief import classify_reference, scene_prompt, carousel_scene_prompt
 
 MODEL="@cf/black-forest-labs/flux-2-klein-4b"
 HOST="d39ru7awumhhs2.cloudfront.net"
@@ -103,7 +103,9 @@ def generate_scene(preview: dict,original: Image.Image | None,account: str,token
     if variation not in (1,2,3):
         raise ValueError("Invalid private preview variation")
     reference_mode=classify_reference(original)
-    prompt=scene_prompt(str(preview["product_name"]),variation,reference_mode)
+    prompt=(carousel_scene_prompt(str(preview["product_name"]),int(preview["slide_number"]),reference_mode)
+            if preview.get("carousel") is True else
+            scene_prompt(str(preview["product_name"]),variation,reference_mode))
     if len(prompt)>2000:
         raise ValueError("Scene brief too long")
     seed=(int(preview["preview_id"].replace("-","")[:7],16)+variation*104729)%(2**32)
@@ -150,7 +152,8 @@ def produce(preview: dict,account: str,token: str) -> tuple[bytes,str]:
         if number not in (2,3,4):
             raise ValueError("Unapproved private carousel slide number")
         output=jpeg_bytes(build_carousel_slide(
-            scene,original,str(preview["product_name"]),value,number,reference_mode=mode))
+            scene,original,str(preview["product_name"]),value,number,reference_mode=mode,
+            headline=preview.get("slide_headline"),tips=preview.get("slide_tips")))
     else:
         output=jpeg_bytes(build_poster(scene,original,str(preview["product_name"]),value,int(preview["variant"]),
                                        reference_mode=mode))
