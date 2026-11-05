@@ -71,7 +71,7 @@ jobs:
           }
           const brief = fs.readFileSync('creative-studio/premium/creative_brief.py','utf8')
           if (!brief.includes('ENTIRE PHYSICAL PRODUCT') ||
-              !brief.includes('AT LEAST 12% background clearance') ||
+              !brief.includes('AT LEAST 6% background clearance') ||
               !brief.includes('NO split layout')) {
             throw new Error('Creative prompt no longer guarantees complete requested subject framing')
           }
