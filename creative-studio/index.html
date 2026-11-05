@@ -42,6 +42,23 @@
   <p class="muted">Portadas editoriales privadas (736 × 1104, formato 2:3). La portada presenta el nombre centrado en Anton ultragruesa y el producto completo en un estudio visual morado. Cuando apruebes visualmente una de las tres alternativas de portada, elige «Crear carrusel Premium»: generaremos automáticamente tres imágenes interiores distintas, con el mismo ambiente cinematográfico, textos seguros y precio solo en el cierre cuando esté verificado. Las fotografías del catálogo guían a la IA si existen; sin foto, la revisión advierte que es conceptual. Formato editorial privado 2:3, aún no adaptado para publicar. GitHub consulta la cola aproximadamente cada 15 minutos. Nada se publica automáticamente.</p>
   <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar hasta 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
+  <div class="panel stack" id="benefitspanel">
+   <h3 style="margin:0">Diapositiva 3 · Tres beneficios del producto</h3>
+   <p class="muted">Usa únicamente ventajas respaldadas por la ficha real del producto. Las afirmaciones del proveedor requieren revisión; sin fuente ni tres beneficios no se generará esta diapositiva. Guardar reemplaza únicamente la imagen 3 cuando exista una portada Premium y archiva la anterior.</p>
+   <div class="stack">
+    <input id="benefit1" maxlength="66" placeholder="Beneficio 1" aria-label="Primer beneficio del producto">
+    <input id="benefit2" maxlength="66" placeholder="Beneficio 2" aria-label="Segundo beneficio del producto">
+    <input id="benefit3" maxlength="66" placeholder="Beneficio 3" aria-label="Tercer beneficio del producto">
+    <label>Fuente de los beneficios
+     <select id="benefitssource">
+      <option value="supplier_listing">Ficha del proveedor · por verificar</option>
+      <option value="catalogue">Catálogo del producto · por verificar</option>
+      <option value="owner_verified">Información verificada por el propietario</option>
+     </select>
+    </label>
+   </div>
+   <div class="row"><button id="savebenefits" class="primary">Guardar y regenerar solo la imagen 3</button><small id="benefitsstate" role="status">Escribe tres beneficios distintos sin promesas no comprobadas.</small></div>
+  </div>
   <div class="cards" id="premiumpreviews"></div>
  </div>
  <div class="bridge"><div class="row"><h2 style="margin:0">Recepción desde Mac (respaldo opcional)</h2><span class="tag">Experimental · $0</span></div><p class="muted">Una carpeta vigilada en tu Mac recibirá las imágenes generadas en ChatGPT. Después de instalar el puente, guarda los cuatro PNG en <code>~/Downloads/DropEC-Creativos/Entrada</code>; el Mac enviará las imágenes a Supabase en orden.</p><div class="row"><button id="preparemac" class="primary">Preparar recepción automática para Mac</button><button id="syncimages">Comprobar imágenes recibidas</button></div><small>Instala y ejecuta el <a href="https://github.com/jokas29/project-bmo/blob/main/creative-studio/puente-mac.command" target="_blank" rel="noopener noreferrer">puente gratuito para Mac</a>. Este botón descargará un archivo de autorización temporal, válido por 2 horas, que el puente detecta. No compartas ese archivo. Nada se publica sin tu aprobación.</small></div><h2>Diapositivas del carrusel</h2><div id="slides" class="slides"></div><div class="panel stack"><div class="row"><h3 style="margin:0">Versiones anteriores</h3><button id="historybutton">Ver historial privado</button></div><div id="historylist" class="stack"></div></div><div class="row"><button id="approve" class="primary">Aprobar carrusel</button><button id="ready">Preparado para publicación</button><small>El publicador permanece bloqueado.</small></div></section>
@@ -162,6 +179,9 @@ function ficha(j){return ["PRODUCTO REAL: "+j.product_name,"Woo: "+j.woo_product
 function fullCarouselPrompt(j){
  const b=j.prompt_bundle||{},series=Array.isArray(b.slides)?b.slides:[];
  const hasPhoto=!!j.source_image_url;
+ const benefitSpec=series.find(x=>Number(x.slide)===3)||{};
+ const benefits=Array.isArray(benefitSpec.benefits)&&benefitSpec.benefits.length===3
+  ?benefitSpec.benefits.join(" / "):"FALTAN BENEFICIOS RESPALDADOS: no inventar textos, pedir información de catálogo.";
  const refNote=hasPhoto
  ? "Si puedes acceder a la fotografía real, úsala como referencia para mantener forma, colores, proporciones, piezas y accesorios. Si no puedes visualizarla, continúa sin referencia, usa una representación conceptual y no finjas haber visto el producto."
  : "No existe fotografía de referencia: genera un arte conceptual sin afirmar que representa exactamente el producto.";
@@ -173,7 +193,7 @@ function fullCarouselPrompt(j){
  refNote,j.product_notes||"",
  "Dirección artística: "+(b.visual_system&&b.visual_system.theme?b.visual_system.theme:"ecommerce editorial premium, producto protagonista, composición limpia"),
  "Genera CUATRO IMÁGENES INDEPENDIENTES (no una sola lámina con cuatro partes), cada una vertical 4:5, objetivo 1080 x 1350, con identidad visual coherente.",
- ...[1,2,3,4].map(i=>{const x=series.find(z=>Number(z.slide)===i)||{};return "DIAPOSITIVA "+i+" ("+(x.role||["portada","problema","solucion","cierre"][i-1])+") "+(x.headline||"")+" — "+(x.composition||"Producto destacado")}),
+ ...[1,2,3,4].map(i=>{const x=series.find(z=>Number(z.slide)===i)||{};return "DIAPOSITIVA "+i+" ("+(i===3?"tres beneficios":x.role||["portada","problema","beneficios","cierre"][i-1])+") "+(i===3?"3 BENEFICIOS DEL PRODUCTO":x.headline||"")+" — "+(i===3?benefits:x.composition||"Producto destacado")}),
  "Mantén precios legibles y textos correctos. Si la generación de letras falla, deja espacio para superponerlas luego.",
  "No inventes especificaciones, reseñas, garantías, disponibilidad, fotos de producto inexistentes ni beneficios no comprobados.",
  "CTA: Solicita tu cotización. Envío por confirmar. No PayPhone, no contraentrega, no prometer despacho inmediato.",
@@ -182,11 +202,43 @@ function fullCarouselPrompt(j){
 }
 function prompt(j,n){
  const b=j.prompt_bundle||{},s=Array.isArray(b.slides)?b.slides.find(x=>x.slide===n):null;
- return ["Eres director/a de arte para DropEC (Ecuador). Genera UNA imagen de carrusel de calidad premium. Usa fotografía original como referencia si existe y es accesible. En ausencia de foto, crea una composición conceptual sin inventar detalles físicos.","FORMATO: 1080x1350, 4:5. DIAPOSITIVA "+n+" de 4.","PRODUCTO: "+j.product_name+" | Woo #"+j.woo_product_id+".","Referencia opcional: si tienes acceso a una fotografía original visible, utilízala. Si no hay imagen o no está accesible, genera sin referencia y no inventes características físicas exactas.",j.product_notes||"",b.visual_system?("DIRECCIÓN VISUAL: "+b.visual_system.theme):"","CONCEPTO: "+(s?s.role:"Diapositiva de producto"),"TÍTULO sugerido: "+(s?s.headline:""),"COMPOSICIÓN: "+(s?s.composition:"Producto protagonista, sin elementos genéricos."),"NO ALTERAR: piezas, forma, color, proporciones o capacidades del producto real. No inventar accesorios, métricas, testimonios, descuentos ni características.","Solo si el precio sigue vigente, usar "+money(j.product_price)+"; el envío se confirma antes del pago.","CTA: Solicita tu cotización. NO PayPhone, NO contraentrega, NO prometer despacho inmediato.","Mantén la coherencia visual con las otras diapositivas. Evita microtextos y sobrecarga.","Genera solo esta imagen; después la guardaré y subiré manualmente al estudio."].filter(Boolean).join("\n\n")
+ return ["Eres director/a de arte para DropEC (Ecuador). Genera UNA imagen de carrusel de calidad premium. Usa fotografía original como referencia si existe y es accesible. En ausencia de foto, crea una composición conceptual sin inventar detalles físicos.","FORMATO: 1080x1350, 4:5. DIAPOSITIVA "+n+" de 4.","PRODUCTO: "+j.product_name+" | Woo #"+j.woo_product_id+".","Referencia opcional: si tienes acceso a una fotografía original visible, utilízala. Si no hay imagen o no está accesible, genera sin referencia y no inventes características físicas exactas.",j.product_notes||"",b.visual_system?("DIRECCIÓN VISUAL: "+b.visual_system.theme):"","CONCEPTO: "+(n===3?"tres beneficios respaldados":s?s.role:"Diapositiva de producto"),"TÍTULO sugerido: "+(n===3?"3 BENEFICIOS DEL PRODUCTO":s?s.headline:""),
+  n===3?("TRES BENEFICIOS DOCUMENTADOS: "+(Array.isArray(s?.benefits)&&s.benefits.length===3?s.benefits.join(" / "):"FALTAN: no inventar beneficios, solicitar datos del proveedor o propietario.")):"","COMPOSICIÓN: "+(n===3?"Imagen contextual de producto y tres tarjetas con ventajas de fuente declarada, sin consejos":s?s.composition:"Producto protagonista, sin elementos genéricos."),"NO ALTERAR: piezas, forma, color, proporciones o capacidades del producto real. No inventar accesorios, métricas, testimonios, descuentos ni características.","Solo si el precio sigue vigente, usar "+money(j.product_price)+"; el envío se confirma antes del pago.","CTA: Solicita tu cotización. NO PayPhone, NO contraentrega, NO prometer despacho inmediato.","Mantén la coherencia visual con las otras diapositivas. Evita microtextos y sobrecarga.","Genera solo esta imagen; después la guardaré y subiré manualmente al estudio."].filter(Boolean).join("\n\n")
 }
 async function copy(s){try{await navigator.clipboard.writeText(s);msg("Texto copiado al portapapeles.")}catch{msg("No se pudo copiar; comprueba permisos del navegador.",true)}}
+function fillBenefits(){
+ const spec=Array.isArray(job?.prompt_bundle?.slides)
+  ?job.prompt_bundle.slides.find(x=>Number(x.slide)===3):null;
+ for(let i=1;i<=3;i++)$("benefit"+i).value=Array.isArray(spec?.benefits)?String(spec.benefits[i-1]||""):"";
+ $("benefitssource").value=["supplier_listing","catalogue","owner_verified"].includes(spec?.benefits_source)
+  ?spec.benefits_source:"supplier_listing";
+ $("savebenefits").disabled=["approved","ready_to_publish","archived"].includes(job?.status);
+ $("benefitsstate").textContent=Array.isArray(spec?.benefits)&&spec.benefits.length===3
+  ?"Beneficios cargados de "+(spec.benefits_source||"fuente por identificar")+". Revisa cada afirmación.":"Faltan tres beneficios sustentados.";
+}
+async function saveProductBenefits(){
+ if(!job||!session)return;
+ const benefits=[1,2,3].map(i=>$("benefit"+i).value.trim());
+ const source=$("benefitssource").value;
+ if(benefits.some(x=>x.length<8||x.length>66)){
+   msg("Introduce tres beneficios concretos de 8 a 66 caracteres, según la información del producto.",true);return;
+ }
+ const save=$("savebenefits");save.disabled=true;
+ try{
+  const result=await api(PREMIUM_API+"/carousel/benefits","POST",
+    {job_id:job.id,benefits,benefits_source:source});
+  if(!result.ok)throw Error(result.error||"No se pudieron guardar los beneficios.");
+  const bundle=job.prompt_bundle&&typeof job.prompt_bundle==="object"?structuredClone(job.prompt_bundle):{};
+  const data=Array.isArray(bundle.slides)?bundle.slides.filter(x=>Number(x.slide)!==3):[];
+  data.push({slide:3,role:"beneficios",headline:"3 BENEFICIOS DEL PRODUCTO",benefits,benefits_source:source});
+  bundle.slides=data;job.prompt_bundle=bundle;
+  msg(result.queued?"Tres beneficios guardados. Solo la diapositiva 3 está en cola Premium; la versión anterior sigue visible y archivada.":"Tres beneficios guardados para usar en el siguiente carrusel Premium.");
+  fillBenefits();await refreshCloud(true);
+ }catch(e){msg("Beneficios: "+e.message,true)}
+ finally{save.disabled=false}
+}
 async function openJob(id){
- job=jobs.find(x=>x.id===id);if(!job)return;show("detail");$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";$("captiondraft").value=job.caption_draft||"";
+ job=jobs.find(x=>x.id===id);if(!job)return;show("detail");fillBenefits();$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";$("captiondraft").value=job.caption_draft||"";
  const image=$("original"),missing=$("originalmissing"),dl=$("downloadsource");
  image.removeAttribute("src");missing.classList.add("hide");dl.disabled=true;
  image.onerror=()=>{image.classList.add("hide");missing.classList.remove("hide");dl.disabled=true};
@@ -246,7 +298,7 @@ async function prepareMac(){
      uploads.push({number:i,path,url});
    }
    for(let i=1;i<=4;i++){
-     await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","solucion","cierre"][i-1],image_path:uploads[i-1].path,status:"pending",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
+     await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","beneficios","cierre"][i-1],image_path:uploads[i-1].path,status:"pending",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
    }
    await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"awaiting_images",publication_locked:true,updated_at:new Date().toISOString()});
    job.status="awaiting_images";$("detailstatus").textContent=status(job.status);
@@ -325,8 +377,8 @@ async function adoptPremium(preview){
 async function preparePremiumCarousel(preview,refreshInteriors=false){
  if(!job||!session||preview.status!=="ready")return;
  const question=refreshInteriors
-  ?"¿Recrear solo las diapositivas 2, 3 y 4 como escenas de uso, consejos y contacto? La portada aprobada visualmente no cambiará. Las versiones anteriores se conservarán de forma privada. No se publicará."
-  :"¿Usar esta portada y generar un carrusel narrativo: persona usando el producto, consejos y cierre con precio/contacto? Se conservarán las versiones anteriores. No se publicará.";
+  ?"¿Recrear solo las diapositivas 2, 3 y 4 como escenas de uso, tres beneficios y contacto? La portada aprobada visualmente no cambiará. Las versiones anteriores se conservarán de forma privada. No se publicará."
+  :"¿Usar esta portada y generar un carrusel narrativo: persona usando el producto, tres beneficios sustentados y cierre con precio/contacto? Se conservarán las versiones anteriores. No se publicará.";
  if(!window.confirm(question))return;
  try{
   const result=await api(PREMIUM_API+"/carousel/prepare","POST",
@@ -477,15 +529,16 @@ async function signed(path,download=false){
  return link.startsWith("http")?link:SUPABASE_URL+(link.startsWith("/storage/v1/")?"":"/storage/v1")+link
 }
 async function renderSlides(){
- const holder=$("slides");holder.replaceChildren();const names=["Portada","En uso","Consejos","Precio y contacto"];
+ const holder=$("slides");holder.replaceChildren();const names=["Portada","En uso","3 beneficios","Precio y contacto"];
  for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Para revisión":s.status==="rendering"?"Generando en la nube":s.status==="error"?"Error de generación":"Pendiente"):"Sin imagen"));
- const media=text("div",null,"slide-preview");if(s&&s.image_path&&s.status!=="pending"){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
+ const media=text("div",null,"slide-preview");if(s&&s.image_path){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
+ if(s?.status==="pending"&&s.image_path)d.append(text("small","Versión anterior visible mientras se prepara la nueva; aún no es la diapositiva definitiva.","muted"));
  d.append(button("Copiar prompt",()=>copy(prompt(job,i))));
  const file=document.createElement("input");file.type="file";file.accept="image/png,image/jpeg,image/webp";file.setAttribute("aria-label","Subir imagen "+i);file.onchange=async()=>{if(file.files&&file.files[0])await upload(i,file.files[0])};d.append(file);
- if(s&&s.image_path){d.append(button("Aprobar",()=>updateSlide(s,"approved")));d.append(button("Rechazar",()=>rejectSlide(s)));d.append(button("Descargar",async()=>{try{window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}))}
+ if(s&&s.image_path){if(s.status==="uploaded"){d.append(button("Aprobar",()=>updateSlide(s,"approved")));d.append(button("Rechazar",()=>rejectSlide(s)))}d.append(button("Descargar",async()=>{try{window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}))}
  if(s&&s.review_notes)d.append(text("p",s.review_notes,"muted"));
  if(s&&s.render_error){
-  const premiumMessage=s.render_error==="premium_carousel_queued"?"Premium: esperando turno en la cola":s.render_error==="premium_carousel_active"?"Premium: generando imagen":null;
+  const premiumMessage=s.render_error==="premium_carousel_queued"?"Premium: esperando turno en la cola":s.render_error==="premium_carousel_active"?"Premium: generando imagen":s.render_error==="premium_benefits_required"||s.render_error==="benefits_required"?"Faltan tres beneficios con fuente declarada":null;
   d.append(text("small",premiumMessage||"Generador: "+s.render_error,premiumMessage?"muted":"error"));
  }
  holder.append(d)}
@@ -499,7 +552,7 @@ async function upload(i,file){
  msg("Subiendo diapositiva "+i+"…");
  try{
  await api("/storage/v1/object/"+BUCKET+"/"+path,"POST",file,{"Content-Type":file.type,"x-upsert":"false"});
- await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","solucion","cierre"][i-1],image_path:path,status:"uploaded",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
+ await api("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number","POST",{job_id:job.id,slide_number:i,role:["portada","problema","beneficios","cierre"][i-1],image_path:path,status:"uploaded",review_notes:null},{"Prefer":"resolution=merge-duplicates,return=representation"});
  await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:"review",publication_locked:true});
  job.status="review";$("detailstatus").textContent=status(job.status);msg("Imagen subida. Debes revisarla y aprobarla.");await loadSlides();
  }catch(e){msg("Fallo de subida: "+e.message,true)}
@@ -512,7 +565,7 @@ $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recov
 $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
 $("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);$("rebuildcloud").onclick=rebuildCloud;$("historybutton").onclick=showHistory;
 $("syncimages").onclick=()=>checkIncoming(false);
-$("premiumqueue").onclick=queuePremium;$("premiumrefresh").onclick=()=>refreshPremium(false);
+$("premiumqueue").onclick=queuePremium;$("premiumrefresh").onclick=()=>refreshPremium(false);$("savebenefits").onclick=saveProductBenefits;
 setInterval(()=>{
  if(session && job && document.visibilityState==="visible" && !$("detail").classList.contains("hide")){
   refreshPremium(true).catch(()=>{});

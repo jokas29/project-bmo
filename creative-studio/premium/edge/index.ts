@@ -251,6 +251,74 @@ async function regenerate(req: Request) {
 // are stored in the existing four-slide review table, never in those previews.
 const PREMIUM_CAROUSEL_PENDING="premium_carousel_queued";
 const PREMIUM_CAROUSEL_ACTIVE="premium_carousel_active";
+const PREMIUM_BENEFITS_REQUIRED="premium_benefits_required";
+const BENEFIT_SOURCES=new Set(["supplier_listing","catalogue","owner_verified"]);
+function validatedBenefits(items: unknown, source: unknown): string[] | null {
+  if(typeof source!=="string" || !BENEFIT_SOURCES.has(source) ||
+     !Array.isArray(items) || items.length!==3)return null;
+  const results: string[]=[];
+  for(const item of items){
+    if(typeof item!=="string" || item.length>100)return null;
+    const value=clean(item,100).toUpperCase();
+    if(value.length<8 || value.length>66 || /[$%\r\n]/.test(item) ||
+       /GARANTIZ|MILAGRO|CURA\b|SIN ESFUERZO|100 POR CIENTO/i.test(value))return null;
+    results.push(value);
+  }
+  return new Set(results).size===3?results:null;
+}
+
+// Generic owner-controlled benefit copy, never inferred from only a product title.
+// Keep the existing slide visible in review until the replacement is delivered.
+async function saveBenefits(req: Request) {
+  await requireOwner(req);
+  const input=await req.json().catch(() => ({})) as Json;
+  const id=validatedJobId(input.job_id);
+  const source=clean(input.benefits_source,40);
+  const benefits=validatedBenefits(input.benefits,source);
+  if(!benefits)return response({error:"Se requieren exactamente 3 beneficios distintos y una fuente válida; sin promesas no sustentadas."},422);
+  const rows=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,prompt_bundle&id=eq."+id+"&limit=1");
+  const job=rows?.[0];
+  if(!job || job.publication_locked!==true || !["review","awaiting_images","generating"].includes(job.status)){
+    return response({error:"Solo productos privados no aprobados pueden editar beneficios."},409);
+  }
+  const covers=await admin("/rest/v1/dropec_creative_slides?select=image_path,status&job_id=eq."+id+"&slide_number=eq.1&limit=1");
+  const premium=String(covers?.[0]?.image_path||"").includes("/premium/") &&
+    ["uploaded","approved"].includes(covers?.[0]?.status);
+  const rows3=await admin("/rest/v1/dropec_creative_slides?select=id,status,image_path,review_notes,render_error&job_id=eq."+id+"&slide_number=eq.3&limit=1");
+  const slide=rows3?.[0];
+  if(!slide || ["approved","rendering"].includes(slide.status))return response({error:"No se modifican beneficios aprobados o en generación."},409);
+  if(slide.image_path){
+    await admin("/rest/v1/dropec_creative_slide_versions?on_conflict=job_id,slide_number,image_path",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify({job_id:id,slide_number:3,image_path:slide.image_path,
+        previous_status:slide.status,review_notes:slide.review_notes||null}),
+    });
+  }
+  const bundle=job.prompt_bundle && typeof job.prompt_bundle==="object" && !Array.isArray(job.prompt_bundle)
+    ? {...job.prompt_bundle}:{} as Json;
+  const existing=Array.isArray(bundle.slides)?bundle.slides.filter((x:any)=>x && Number(x.slide)!==3):[];
+  const old=Array.isArray(bundle.slides)?bundle.slides.find((x:any)=>x && Number(x.slide)===3):null;
+  bundle.slides=[...existing,{...(old && typeof old==="object"?old:{}),slide:3,role:"beneficios",
+    headline:"3 BENEFICIOS DEL PRODUCTO",benefits,benefits_source:source}].sort((a:any,b:any)=>Number(a.slide)-Number(b.slide));
+  const updated=await admin("/rest/v1/dropec_creative_jobs?id=eq."+id+"&status=eq."+job.status,{
+    method:"PATCH",headers:{Prefer:"return=representation"},
+    body:JSON.stringify({prompt_bundle:bundle,status:"review",publication_locked:true,caption_reviewed:false,updated_at:new Date().toISOString()}),
+  });
+  if(!Array.isArray(updated)||updated.length!==1)return response({error:"El producto cambió durante la edición."},409);
+  // No job-wide rebuild, no deletion and no alteration of slides 1, 2 or 4.
+  if(premium){
+    const next=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq."+slide.status,{
+      method:"PATCH",headers:{Prefer:"return=representation"},
+      body:JSON.stringify({status:"pending",role:"beneficios",render_error:PREMIUM_CAROUSEL_PENDING,
+        render_attempts:0,render_after:null,render_started_at:null,
+        review_notes:"Versión anterior conservada; tres beneficios del proveedor o catálogo pendientes de revisión.",
+        updated_at:new Date().toISOString()}),
+    });
+    if(!Array.isArray(next)||next.length!==1)return response({error:"La diapositiva cambió durante la edición."},409);
+  }
+  return response({ok:true,saved:3,source,queued:premium,publication_locked:true,publishing_enabled:false});
+}
+
 
 async function prepareCarousel(req: Request) {
   await requireOwner(req);
@@ -339,6 +407,21 @@ async function claimCarousel(req: Request) {
     if(!job || job.publication_locked!==true || job.status!=="review")continue;
     const cover=await admin("/rest/v1/dropec_creative_slides?select=image_path,status&job_id=eq."+job.id+"&slide_number=eq.1&limit=1");
     if(!cover?.[0]?.image_path || !["uploaded","approved"].includes(cover[0].status))continue;
+    const number=Number(item.slide_number);
+    const variant=({2:3,3:1,4:2} as Record<number,number>)[number];
+    const original=allowedProductImage(job.source_image_url);
+    const custom=Array.isArray(job.prompt_bundle?.slides)
+      ? job.prompt_bundle.slides.find((x:any)=>x && Number(x.slide)===number)
+      : null;
+    const benefitItems=number===3?validatedBenefits(custom?.benefits,custom?.benefits_source):null;
+    if(number===3 && !benefitItems){
+      await admin("/rest/v1/dropec_creative_slides?id=eq."+item.id+
+        "&status=eq.pending&render_error=eq."+PREMIUM_CAROUSEL_PENDING,{
+        method:"PATCH",body:JSON.stringify({render_error:PREMIUM_BENEFITS_REQUIRED,
+          review_notes:"Faltan tres beneficios documentados. Agrégalos desde el panel privado; no se inventarán."}),
+      });
+      continue;
+    }
     const acquired=await admin("/rest/v1/dropec_creative_slides?id=eq."+item.id+
       "&status=eq.pending&render_error=eq."+PREMIUM_CAROUSEL_PENDING,{
       method:"PATCH",headers:{Prefer:"return=representation"},
@@ -347,24 +430,15 @@ async function claimCarousel(req: Request) {
         render_attempts:Number(item.render_attempts||0)+1}),
     });
     if(!Array.isArray(acquired)||acquired.length!==1)continue;
-    const number=Number(item.slide_number);
-    const variant=({2:3,3:1,4:2} as Record<number,number>)[number];
-    const original=allowedProductImage(job.source_image_url);
-    const custom=Array.isArray(job.prompt_bundle?.slides)
-      ? job.prompt_bundle.slides.find((x:any)=>x && Number(x.slide)===number)
-      : null;
     const candidate=typeof custom?.headline==="string"?clean(custom.headline,90):"";
-    const heading=candidate && !/[\d$%]/.test(candidate) && !/garantiz|gratis|milagro|cura|descuento/i.test(candidate)
+    const heading=number===3?"3 BENEFICIOS DEL PRODUCTO":
+      candidate && !/[\\d$%]/.test(candidate) && !/garantiz|gratis|milagro|cura|descuento/i.test(candidate)
       ? candidate:null;
-    const tipItems=number===3 && Array.isArray(custom?.tips) && custom.tips.length===3 &&
-      custom.tips.every((x:unknown)=>typeof x==="string" && clean(x,67).length>=8 &&
-        clean(x,67).length<=66 && !/[\d$%]/.test(clean(x,67)) && !/garantiz|cura|gratis|milagro/i.test(clean(x,67)))
-      ? custom.tips.map((x:unknown)=>clean(x,66)):null;
     return response({ok:true,processed:true,carousel:true,slide_number:number,
       slide_id:item.id,preview_id:item.id,variant,
       prompt:prompt(job.product_name,variant),
       product_name:clean(job.product_name,130),price:job.product_price,
-      slide_headline:number===4?null:heading,slide_tips:tipItems,
+      slide_headline:number===4?null:heading,slide_benefits:benefitItems,
       original_url:original,original_available:!!original,
       publication_locked:true,conceptual_review_required:!original});
   }
@@ -378,8 +452,13 @@ async function completeCarousel(req: Request) {
   if(!req.headers.get("content-type")?.startsWith("image/jpeg")) return response({error:"JPEG required"},415);
   const slideRows=await admin("/rest/v1/dropec_creative_slides?select=id,job_id,slide_number,status,render_error,image_path&id=eq."+id+"&limit=1");
   const slide=slideRows?.[0];
+  // A selective slide-3 refresh keeps the previously uploaded private image
+  // visible while rendering. All other slides still require an empty slot.
+  const permittedPrior=slide?.slide_number===3 &&
+    String(slide?.image_path||"").startsWith(String(slide?.job_id||"")+"/premium/carousel-slide-3-");
   if(!slide || ![2,3,4].includes(slide.slide_number) || slide.status!=="rendering" ||
-     slide.render_error!==PREMIUM_CAROUSEL_ACTIVE || slide.image_path) return response({error:"No active private carousel lease"},409);
+     slide.render_error!==PREMIUM_CAROUSEL_ACTIVE ||
+     (slide.image_path && !permittedPrior)) return response({error:"No active private carousel lease"},409);
   const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&id=eq."+slide.job_id+"&limit=1");
   if(jobs?.[0]?.publication_locked!==true || jobs?.[0]?.status!=="review")return response({error:"Carousel job no longer private"},409);
   const data=new Uint8Array(await req.arrayBuffer());
@@ -396,7 +475,7 @@ async function completeCarousel(req: Request) {
       render_after:null,render_started_at:null,
       review_notes:"Premium cinematográfico · "+(mode==="conceptual"?"IMAGEN ILUSTRATIVA; producto no verificado. ":"")+
         (slide.slide_number===2?"Uso por persona generado con IA: verificar manos, mecanismo real y seguridad. ":
-        slide.slide_number===3?"Tips para revisión: validar recomendaciones y escena con el producto real. ":
+        slide.slide_number===3?"Tres beneficios declarados por su fuente: verificar cada afirmación y la escena con el producto real. ":
         "Comprobar precio y contacto antes de compartir. ")+
         "Revisión humana obligatoria, nunca publicar automáticamente.",
       updated_at:new Date().toISOString()}),
@@ -449,6 +528,7 @@ Deno.serve(async (req: Request) => {
     gpu_required:true,no_paid_api:true,model:"FLUX.2-klein-4B",
   });
   try {
+    if(req.method==="POST" && path.endsWith("/carousel/benefits"))return await saveBenefits(req);
     if(req.method==="POST" && path.endsWith("/carousel/prepare"))return await prepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/claim"))return await claimCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/complete"))return await completeCarousel(req);

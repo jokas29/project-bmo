@@ -50,6 +50,6 @@ jobs:
           if (shouldPoll({status:'review'},[{status:'pending',render_error:null}])) throw new Error('Idle review polls unnecessarily');
           if (!script[1].includes('shouldPollCloudSlides(job,slides))refreshCloud(true)')) throw new Error('Progress polling not wired');
           for (const label of ['Premium: esperando turno en la cola','Premium: generando imagen','Carrusel Premium: cola aproximadamente cada 15 minutos']) if (!script[1].includes(label)) throw new Error('Missing human-readable Premium state: '+label);
-          if (!script[1].includes('const names=["Portada","En uso","Consejos","Precio y contacto"]')) throw new Error('Old repetitive carousel labels still shown');
+          if (!script[1].includes('const names=["Portada","En uso","3 beneficios","Precio y contacto"]')) throw new Error('Three-benefit carousel labels missing');
           console.log('Creative Studio JavaScript parses; Premium review polling and private controls verified.');
           NODE

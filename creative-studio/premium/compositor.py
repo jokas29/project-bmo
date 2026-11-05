@@ -383,40 +383,36 @@ def _contextual_photo(art: Image.Image, scene: Image.Image, *,
     return art
 
 
-def _clean_tips(product_name: str, tips: Optional[list[str]]) -> list[str]:
-    """Short actionable guidance; avoid claims of measurements or performance."""
-    from creative_brief import category_for_name
-    fallback={
-        "cocina": ["PREPARA LOS INGREDIENTES","CONSULTA LAS INDICACIONES","LIMPIA SEGÚN EL MANUAL"],
-        "tecnologia": ["REVISA LA COMPATIBILIDAD","SIGUE LA GUÍA DEL EQUIPO","GUÁRDALO EN LUGAR SEGURO"],
-        "herramientas": ["PREPARA EL ESPACIO DE TRABAJO","USA LA PROTECCIÓN ADECUADA","SIGUE LAS INDICACIONES"],
-        "bienestar": ["LEE LAS INDICACIONES","REVISA LOS INGREDIENTES","GUARDA SEGÚN EL ENVASE"],
-        "deporte": ["REVISA LAS INSTRUCCIONES","ADAPTA EL USO A TU RUTINA","GUÁRDALO CORRECTAMENTE"],
-        "hogar": ["PLANIFICA DÓNDE USARLO","SIGUE EL MANUAL","LÍMPIALO CON CUIDADO"],
-        "general": ["REVISA LAS INSTRUCCIONES","UTILÍZALO SEGÚN EL MANUAL","GUÁRDALO CON CUIDADO"],
-    }
-    if tips is None:return fallback[category_for_name(product_name)]
-    if not isinstance(tips,(tuple,list)) or len(tips)!=3:
-        raise ValueError("Tips must contain exactly three entries")
+def _clean_benefits(benefits: Optional[list[str]]) -> list[str]:
+    """Render only three sourced benefit statements; never invent category copy.
+
+    The authenticated queue verifies the source and requires owner review.
+    This renderer independently fails closed when benefits are missing.
+    """
+    if not isinstance(benefits,(tuple,list)) or len(benefits)!=3:
+        raise ValueError("Exactly three sourced benefits are required")
     cleaned=[]
-    for item in tips:
-        if not isinstance(item,str):raise ValueError("Invalid tip type")
-        text=" ".join(item.upper().split())
-        if not 8<=len(text)<=66 or any(x in text for x in ("$","%","\n","\r")):
-            raise ValueError("Unsafe or overly long tip")
-        cleaned.append(text)
+    for item in benefits:
+        if not isinstance(item,str):
+            raise ValueError("Invalid benefit type")
+        value=" ".join(item.upper().split())
+        if (not 8<=len(value)<=66 or any(x in value for x in ("$","%","\\n","\\r")) or
+            any(x in value for x in ("GARANTIZ","MILAGRO","CURA ","SIN ESFUERZO","100 POR CIENTO"))):
+            raise ValueError("Unsupported or overly long product benefit")
+        cleaned.append(value)
+    if len(set(cleaned))!=3:
+        raise ValueError("Product benefits must be distinct")
     return cleaned
 
-
-def _tip_cards(art: Image.Image, tips: list[str]):
+def _benefit_cards(art: Image.Image, benefits: list[str]):
     lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
     d=ImageDraw.Draw(art)
-    for i,tip in enumerate(tips):
+    for i,benefit in enumerate(benefits):
         top=654+i*139
         d.rounded_rectangle((33,top,W-33,top+125),radius=22,
                             fill=(41,20,74,242),outline=(132,88,177,230),width=2)
         d.text((58,top+24),f"0{i+1}",font=load_font(44),fill=lime)
-        left=145; words=tip.split()
+        left=145; words=benefit.split()
         for size in range(41,24,-2):
             font=load_font(size)
             lines=[]; current=""
@@ -431,7 +427,7 @@ def _tip_cards(art: Image.Image, tips: list[str]):
                 for j,segment in enumerate(lines):
                     d.text((left,base_y+j*round(size*1.04)),segment,font=font,fill=INK)
                 break
-        else:raise ValueError("Tip cannot fit in legible card")
+        else:raise ValueError("Benefit cannot fit in legible card")
 
 
 def build_carousel_slide(scene: Image.Image, original: Optional[Image.Image],
@@ -440,8 +436,8 @@ def build_carousel_slide(scene: Image.Image, original: Optional[Image.Image],
                          reference_mode: str="catalog_reference",
                          subject: Optional[Image.Image]=None,
                          headline: Optional[str]=None,
-                         tips: Optional[list[str]]=None) -> Image.Image:
-    """Real-life use, practical tips and conversion. Cover is untouched."""
+                         benefits: Optional[list[str]]=None) -> Image.Image:
+    """Real-life use, three sourced benefits, and conversion. Cover is untouched."""
     if slide_number not in (2,3,4):
         raise ValueError("Only inner slides 2, 3 and 4")
     if reference_mode not in MODES:raise ValueError("Unapproved reference mode")
@@ -459,9 +455,9 @@ def build_carousel_slide(scene: Image.Image, original: Optional[Image.Image],
         _contextual_photo(art,scene,y=218,height=877)
         return art.convert("RGB")
     if slide_number==3:
-        _story_headline(art,headline or "TIPS DE USO",max_bottom=208)
+        _story_headline(art,"3 BENEFICIOS DEL PRODUCTO",max_bottom=208)
         _contextual_photo(art,scene,y=191,height=469)
-        _tip_cards(art,_clean_tips(product_name,tips))
+        _benefit_cards(art,_clean_benefits(benefits))
         return art.convert("RGB")
     # Only the closing slide remains a whole-object hero on the studio stage.
     _interior_title(art,"¿TE INTERESA?",size=86)

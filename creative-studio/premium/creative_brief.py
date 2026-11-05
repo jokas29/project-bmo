@@ -120,7 +120,7 @@ _DETAIL_CONTEXT = {
 
 
 def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: str) -> str:
-    """Role-specific FLUX scene. People must remain in slide 2; scene 3 is contextual.
+    """Role-specific FLUX scene. Slide 2 shows a person; slide 3 supports verified benefits.
 
     The cover and sales close still use the isolated-product prompt. This
     function never asks FLUX to write claims, headlines, labels or prices.
@@ -172,8 +172,8 @@ def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: 
         "Medium shot, lived-in authentic environment, believable scale and contact "
         "with the surface. Never isolate the product against blank gray. "
         if slide_number == 2 else
-        "USEFUL TIPS BACKDROP FOR SLIDE 3: " + details + " "
-        "Premium contextual still-life, top-down or elegant diagonal angle, "
+        "THREE PRODUCT BENEFITS PHOTO BACKDROP FOR SLIDE 3: " + details + " "
+        "Premium benefit-led contextual still-life, top-down or elegant diagonal angle, "
         "different from the usage photo, product smaller than the human demonstration. "
         "Composition centered with real environmental objects. No isolated cutout. "
     )

@@ -150,10 +150,22 @@ async function ensureCaption(job: any) {
     method:"PATCH",body:JSON.stringify({caption_draft:caption,hashtags:tags,caption_reviewed:false,updated_at:new Date().toISOString()})
   });
 }
+function sourcedBenefits(bundle: any): string[] | null {
+  const spec=Array.isArray(bundle?.slides)
+    ?bundle.slides.find((x:any)=>Number(x?.slide)===3):null;
+  if(!["supplier_listing","catalogue","owner_verified"].includes(String(spec?.benefits_source||"")) ||
+     !Array.isArray(spec?.benefits) || spec.benefits.length!==3)return null;
+  const items: string[]=spec.benefits.map((x:unknown)=>clean(x,100).toUpperCase());
+  if(items.some(x=>x.length<8||x.length>66||/[$%\r\n]/.test(x)||
+     /GARANTIZ|MILAGRO|CURA\b|SIN ESFUERZO/i.test(x)))return null;
+  return new Set(items).size===3?items:null;
+}
 async function compose(job: any, number: number) {
   const W=1080,H=1350;
   const slides=Array.isArray(job.prompt_bundle?.slides)?job.prompt_bundle.slides:[];
   const spec=slides.find((x: any)=>Number(x.slide)===number)||{};
+  const benefits=number===3?sourcedBenefits(job.prompt_bundle):null;
+  if(number===3 && !benefits)throw new Error("Faltan tres beneficios respaldados por una fuente declarada");
   const source=await imageBytes(job);
   const lowQuality=source.width<550 || source.height<550;
   const backgrounds=["#171322","#F5F2EB","#241C39","#171322"];
@@ -166,7 +178,7 @@ async function compose(job: any, number: number) {
   rounded(im,75,65,200,69,32,color(accent[idx]));
   await draw(im,"DropEC",99,78,34,"#16131F",true,158);
   await draw(im,"CARRUSEL  /  "+number+" DE 4",785,92,21,inks[idx],false,240);
-  const title=clean(spec.headline,140) || clean(job.product_name,110);
+  const title=number===3?"3 BENEFICIOS DEL PRODUCTO":clean(spec.headline,140) || clean(job.product_name,110);
   await headline(im,title,92,175,inks[idx],number===4?59:66,number===4?24:23);
   // Preserve the actual product photograph. No synthetic pieces, capabilities or lifestyle demonstrations.
   if (number===1) {
@@ -177,8 +189,13 @@ async function compose(job: any, number: number) {
     photo(im,source,520,605);
     await draw(im,"UNA SOLUCIÓN PARA EXPLORAR",104,1160,25,"#4C365D",true,850);
   } else if(number===3) {
-    photo(im,source,475,685);
-    await draw(im,"CONOCE SUS DETALLES",104,1172,29,"#D1FF79",true,850);
+    photo(im,source,434,403);
+    for(let i=0;i<3;i++){
+      const y=866+i*132;
+      rounded(im,75,y,930,113,24,color("#3E2261"));
+      await draw(im,String(i+1).padStart(2,"0"),102,y+27,47,"#D1FF79",true,83);
+      await draw(im,benefits![i],205,y+35,35,"#F7F5FF",true,760);
+    }
   } else {
     photo(im,source,438,640);
     const price=Number(job.product_price);
@@ -287,6 +304,13 @@ async function processOne(autoSelect=true) {
     const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,render_error,render_after,render_attempts&job_id=eq."+job.id+"&order=slide_number.asc");
     const pending=slides.find((s:any)=>s.status==="pending" && !s.image_path && !isPremiumCarouselSlide(s) && (!s.render_after || new Date(s.render_after).getTime()<=Date.now()));
     if(!pending) continue;
+    if(Number(pending.slide_number)===3 && !sourcedBenefits(job.prompt_bundle)){
+      await admin("/rest/v1/dropec_creative_slides?id=eq."+pending.id+"&status=eq.pending",{
+        method:"PATCH",body:JSON.stringify({render_error:"benefits_required",
+          review_notes:"Introduce tres beneficios con fuente en Creative Studio. No se inventarán."})
+      });
+      continue;
+    }
     const acquired=await admin("/rest/v1/dropec_creative_slides?id=eq."+pending.id+"&status=eq.pending",{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({status:"rendering",render_started_at:new Date().toISOString(),render_attempts:Number(pending.render_attempts||0)+1,render_error:null})});
     if(!Array.isArray(acquired)||!acquired.length) continue;
     const attempts=Number(pending.render_attempts||0)+1;
