@@ -309,7 +309,7 @@ async function saveBenefits(req: Request) {
   if(premium){
     const next=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq."+slide.status,{
       method:"PATCH",headers:{Prefer:"return=representation"},
-      body:JSON.stringify({status:"pending",render_error:PREMIUM_CAROUSEL_PENDING,
+      body:JSON.stringify({status:"pending",role:"beneficios",render_error:PREMIUM_CAROUSEL_PENDING,
         render_attempts:0,render_after:null,render_started_at:null,
         review_notes:"Versión anterior conservada; tres beneficios del proveedor o catálogo pendientes de revisión.",
         updated_at:new Date().toISOString()}),
