@@ -74,8 +74,11 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         _SCENES[variant - 1],
         _CONTEXT_SCENE[category],
         "ONE SQUARE 1:1 seamless editorial advertisement. Show the ENTIRE PHYSICAL PRODUCT "
-        "from top to base and edge to edge including handles or cords, with AT LEAST 12% background clearance "
-        "on ALL FOUR EDGES. Medium-wide camera, zoom out, no extreme closeup or cut-off parts. "
+        "from top to base and edge to edge including handles or cords, with AT LEAST 6% background clearance "
+        "on ALL FOUR EDGES. The actual product should occupy approximately 80-85% of image height "
+        "when its proportions allow; make it LARGE, prominently forward and immediately recognizable. "
+        "Never miniaturize it in an empty studio, never crop any physical component, "
+        "no extreme closeup or cut-off parts. "
         "Product in dominant foreground, IN FRONT of all decorations, with natural contact shadow. "
         "ONE coherent scene with continuous background and lighting. NO split layout, poster-in-poster, "
         "photo frame, collage, catalogue infographic, white panel or cutout sticker. "
