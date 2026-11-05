@@ -504,7 +504,18 @@ setInterval(()=>{
   refreshPremium(true).catch(()=>{});
  }
 },60000);
-setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
+function shouldPollCloudSlides(currentJob,currentSlides){
+ if(!currentJob)return false;
+ if(currentJob.status==="generating")return true;
+ if(currentJob.status!=="review")return false;
+ return currentSlides.some(s=>
+  (s.status==="pending"&&s.render_error==="premium_carousel_queued")||
+  (s.status==="rendering"&&s.render_error==="premium_carousel_active")
+ );
+}
+setInterval(()=>{
+ if(session&&job&&document.visibilityState==="visible"&&!$("detail").classList.contains("hide")&&shouldPollCloudSlides(job,slides))refreshCloud(true);
+},15000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
 $("approve").onclick=()=>{if(slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved"))updateJob("approved")};
 $("ready").onclick=()=>{if(job&&job.status==="approved")updateJob("ready_to_publish")};
