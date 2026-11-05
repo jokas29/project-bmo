@@ -259,7 +259,7 @@ function validatedBenefits(items: unknown, source: unknown): string[] | null {
   const results: string[]=[];
   for(const item of items){
     if(typeof item!=="string" || item.length>100)return null;
-    const value=clean(item,66).toUpperCase();
+    const value=clean(item,100).toUpperCase();
     if(value.length<8 || value.length>66 || /[$%\r\n]/.test(item) ||
        /GARANTIZ|MILAGRO|CURA\b|SIN ESFUERZO|100 POR CIENTO/i.test(value))return null;
     results.push(value);
@@ -452,8 +452,13 @@ async function completeCarousel(req: Request) {
   if(!req.headers.get("content-type")?.startsWith("image/jpeg")) return response({error:"JPEG required"},415);
   const slideRows=await admin("/rest/v1/dropec_creative_slides?select=id,job_id,slide_number,status,render_error,image_path&id=eq."+id+"&limit=1");
   const slide=slideRows?.[0];
+  // A selective slide-3 refresh keeps the previously uploaded private image
+  // visible while rendering. All other slides still require an empty slot.
+  const permittedPrior=slide?.slide_number===3 &&
+    String(slide?.image_path||"").startsWith(String(slide?.job_id||"")+"/premium/carousel-slide-3-");
   if(!slide || ![2,3,4].includes(slide.slide_number) || slide.status!=="rendering" ||
-     slide.render_error!==PREMIUM_CAROUSEL_ACTIVE || slide.image_path) return response({error:"No active private carousel lease"},409);
+     slide.render_error!==PREMIUM_CAROUSEL_ACTIVE ||
+     (slide.image_path && !permittedPrior)) return response({error:"No active private carousel lease"},409);
   const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&id=eq."+slide.job_id+"&limit=1");
   if(jobs?.[0]?.publication_locked!==true || jobs?.[0]?.status!=="review")return response({error:"Carousel job no longer private"},409);
   const data=new Uint8Array(await req.arrayBuffer());
