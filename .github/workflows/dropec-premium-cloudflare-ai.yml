@@ -3,6 +3,7 @@ name: DropEC Premium — Cloudflare FLUX.2 Free Inference (staging only)
 on:
   workflow_dispatch:
   schedule:
+    # GitHub scheduled runs may be delayed or skipped; a manual or code push also starts this private worker.
     - cron: '*/15 * * * *'
   push:
     branches: [main]
