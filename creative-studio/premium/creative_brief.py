@@ -9,9 +9,9 @@ import re
 import unicodedata
 
 _SCENES = (
-    "Premium hero advertising photography, considered studio lighting, deep violet atmosphere with restrained neon-lime accent reflections.",
-    "Editorial product photography, elegant angled studio perspective, polished shadows, controlled violet highlights, dynamic depth.",
-    "Lifestyle-inspired product visualization in an appropriate everyday setting, natural dramatic light and refined commercial styling.",
+    "High-end realistic product photography, three-quarter perspective, refined metallic and material reflections.",
+    "Premium catalogue product photography from a slightly elevated three-quarter view, precise edges and soft studio lighting.",
+    "Polished commercial product photo, angled slightly from the front, accurate materials, clear physical silhouette.",
 )
 _CONTEXT = {
     "cocina": ("cocina", "alimento", "olla", "cuchillo", "picador", "licuadora", "cortar", "utensilio", "horno", "sarten", "chef", "cafetera"),
@@ -69,21 +69,29 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         "representation of the product category only, not an exact or verified SKU. "
         "Avoid recognizable brand marks, precise model details or supposed functional components. "
     )
+    # The background is deliberately uniform: the free CPU segmentation
+    # model removes it so that the product can overlap DropEC's actual organic
+    # shapes. Do NOT ask FLUX to generate the final ad, brand, typography,
+    # or another scene which would become a rectangular photo in the layout.
     return " ".join((
         instruction,
-        _SCENES[variant - 1],
-        _CONTEXT_SCENE[category],
-        "ONE SQUARE 1:1 seamless editorial advertisement. Show the ENTIRE PHYSICAL PRODUCT "
-        "from top to base and edge to edge including handles or cords, with AT LEAST 6% background clearance "
-        "on ALL FOUR EDGES. The actual product should occupy approximately 80-85% of image height "
-        "when its proportions allow; make it LARGE, prominently forward and immediately recognizable. "
-        "Never miniaturize it in an empty studio, never crop any physical component, "
-        "no extreme closeup or cut-off parts. "
-        "Product in dominant foreground, IN FRONT of all decorations, with natural contact shadow. "
-        "ONE coherent scene with continuous background and lighting. NO split layout, poster-in-poster, "
-        "photo frame, collage, catalogue infographic, white panel or cutout sticker. "
-        "The compositor will add exact text and brand separately. "
-        "NO writing, labels, logos, prices, watermarks, buttons or numbers inside the generated image. "
-        "Do not invent benefits, measurements or missing product components.",
+        _SCENES[variant-1],
+        "Single physical product of category " + category + ".",
+        "ONE isolated photorealistic physical product, entire object visible "
+        "from highest to lowest point including handles, wires and accessories "
+        "ONLY when actually attached in the reference. "
+        "Keep AT LEAST 6% background clearance on ALL FOUR EDGES. "
+        "Use an uncluttered FLAT solid matte light gray #E8E8E8 background "
+        "which is one continuous uniform color from corner to corner, "
+        "with NO horizon line, room, countertop, gradient, texture or objects. "
+        "The product occupies 70-84% of the canvas with no cropped parts, "
+        "natural commercial proportions and a crisp high-contrast silhouette. "
+        "A soft subtle contact shadow directly under the product is acceptable, "
+        "but NO props, no floating ingredients, no hands and no humans. "
+        "NO split layout, no shape, no product collage, no text, no logos, "
+        "no labels, no badges, no buttons and no graphic design. "
+        "Do not fabricate capabilities, specifications or components. "
+        "The DropEC compositor will add its own verified Spanish text and "
+        "brand design after the product has been isolated.",
         "Product name for thematic context only: " + " ".join(product_name.split()) + ".",
     ))
