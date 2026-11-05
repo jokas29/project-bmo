@@ -153,7 +153,7 @@ def produce(preview: dict,account: str,token: str) -> tuple[bytes,str]:
             raise ValueError("Unapproved private carousel slide number")
         output=jpeg_bytes(build_carousel_slide(
             scene,original,str(preview["product_name"]),value,number,reference_mode=mode,
-            headline=preview.get("slide_headline"),tips=preview.get("slide_tips")))
+            headline=preview.get("slide_headline"),benefits=preview.get("slide_benefits")))
     else:
         output=jpeg_bytes(build_poster(scene,original,str(preview["product_name"]),value,int(preview["variant"]),
                                        reference_mode=mode))
