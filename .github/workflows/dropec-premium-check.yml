@@ -55,7 +55,23 @@ jobs:
           if (!claimBlock.includes("if: steps.preflight.outputs.ready == 'true'")) {
             throw new Error('Private premium queue claim is not gated by free model availability')
           }
+          const compositor = fs.readFileSync('creative-studio/premium/compositor.py','utf8')
+          if (compositor.includes('poster.alpha_composite(fitted') ||
+              compositor.includes('dr.rounded_rectangle((72,panel_top')) {
+            throw new Error('Premium must not paste the source advertisement over generated scene')
+          }
+          if (!compositor.includes('HERO_TOP, HERO_BOTTOM') || !compositor.includes('reference_mode == "conceptual"')) {
+            throw new Error('Full-bleed layout or honest no-photo disclosure missing')
+          }
+          const cloud = fs.readFileSync('creative-studio/premium/cloudflare_runner.py','utf8')
+          if (!cloud.includes('source_photo(preview.get("original_url"))') ||
+              !cloud.includes('classify_reference(original)')) {
+            throw new Error('Cloudflare runner must support missing catalogue images')
+          }
           const edge = fs.readFileSync('creative-studio/premium/edge/index.ts','utf8')
+          for (const x of ['path.endsWith("/regenerate")','/rest/v1/dropec_premium_preview_versions','original_url:source','allowedProductImage(value: unknown): string | null']){
+            if (!edge.includes(x)) throw new Error('Missing universal private staging invariant: '+x)
+          }
           if (!edge.includes('dropec-premium-cloudflare-ai.yml@refs/heads/main')) {
             throw new Error('Cloudflare runner identity is missing from exact OIDC allowlist')
           }
