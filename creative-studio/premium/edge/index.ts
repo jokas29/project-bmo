@@ -320,6 +320,80 @@ async function saveBenefits(req: Request) {
 }
 
 
+// OIDC-only autopilot. No browser visit, manual cover approval or social publisher.
+// It only picks new, already selected, private jobs with a verified catalogue
+// reference and three sourced, distinct product benefits.
+async function autoPrepareCarousel(req: Request) {
+  await requireRunner(req);
+  const settings=await admin("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
+  if(!settings?.[0]?.enabled)return response({ok:true,action:"paused",publication_locked:true,publishing_enabled:false});
+  const limit=Math.min(12,Math.max(1,Number(settings[0].max_jobs_per_day||3)));
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,product_name,product_price,source_image_url,prompt_bundle,target_platforms,caption_draft,hashtags&status=in.(pending,prepared,awaiting_images,review)&publication_locked=eq.true&order=created_at.asc&limit=25");
+  for(const job of jobs){
+    if(!Array.isArray(job.target_platforms) ||
+       !job.target_platforms.some((p:string)=>p==="instagram"||p==="facebook"))continue;
+    if(!allowedProductImage(job.source_image_url))continue;
+    const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path&job_id=eq."+job.id+"&order=slide_number.asc");
+    if(slides.length!==4 || slides.some((s:any)=>s.status!=="pending"||s.image_path) ||
+       slides.some((s:any)=>![1,2,3,4].includes(Number(s.slide_number))))continue;
+    const previewRows=await admin("/rest/v1/dropec_premium_previews?select=id,status,poster_path,reference_mode&job_id=eq."+job.id+"&variant=eq.2&limit=1");
+    const preview=previewRows?.[0];
+    if(!preview){
+      const utcMidnight=new Date().toISOString().slice(0,10)+"T00:00:00Z";
+      const today=await admin("/rest/v1/dropec_premium_previews?select=id&variant=eq.2&created_at=gte."+encodeURIComponent(utcMidnight)+"&limit=100");
+      if(today.length>=limit)return response({ok:true,action:"daily_limit",limit,publication_locked:true,publishing_enabled:false});
+      await admin("/rest/v1/dropec_premium_previews",{
+        method:"POST",headers:{Prefer:"return=minimal"},
+        body:JSON.stringify({job_id:job.id,variant:2,status:"queued",prompt:prompt(job.product_name,2)}),
+      });
+      return response({ok:true,action:"cover_queued",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    if(preview.status!=="ready"||!preview.poster_path)continue;
+    if(!["catalog_reference","low_resolution_reference","promotional_reference"].includes(preview.reference_mode)){
+      return response({ok:true,action:"requires_real_photo",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    const spec=Array.isArray(job.prompt_bundle?.slides)
+      ?job.prompt_bundle.slides.find((s:any)=>Number(s?.slide)===3):null;
+    const benefits=validatedBenefits(spec?.benefits,spec?.benefits_source);
+    if(!benefits){
+      return response({ok:true,action:"requires_sourced_benefits",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    // The same job must still be unmodified and locked before any write.
+    const latest=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path&job_id=eq."+job.id+"&order=slide_number.asc");
+    if(latest.length!==4||latest.some((s:any)=>s.status!=="pending"||s.image_path))continue;
+    const title=clean(job.product_name,120);
+    const price=Number(job.product_price);
+    const hashtags=["#DropEC","#Ecuador"];
+    const copy=title+"\\n\\n"+(price>0&&Number.isFinite(price)?"Precio de catálogo: $"+price.toFixed(2)+" (por confirmar).\\n":"")+
+      "Consulta disponibilidad y costo de envío antes de pagar. Escríbenos por mensaje para solicitar una cotización.\\n\\n"+hashtags.join(" ");
+    const updatedJob=await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id+"&status=eq."+job.status+"&publication_locked=eq.true",{
+      method:"PATCH",headers:{Prefer:"return=representation"},
+      body:JSON.stringify({status:"review",publication_locked:true,
+        ...(job.caption_draft?{}:{caption_draft:copy,hashtags,caption_reviewed:false}),
+        updated_at:new Date().toISOString()}),
+    });
+    if(!Array.isArray(updatedJob)||updatedJob.length!==1)continue;
+    for(const slide of latest){
+      const number=Number(slide.slide_number);
+      const patch=number===1
+        ? {role:"portada",image_path:preview.poster_path,status:"uploaded",render_error:null,render_after:null,render_started_at:null,
+            review_notes:"Portada Premium auto-seleccionada · validar producto real antes de publicación."}
+        : {role:number===2?"problema":number===3?"beneficios":"cierre",status:"pending",image_path:null,
+            render_error:PREMIUM_CAROUSEL_PENDING,render_attempts:0,render_after:null,render_started_at:null,
+            review_notes:"Carrusel Premium automático privado en cola; sin autorización ni publicación externa."};
+      const result=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq.pending",{
+        method:"PATCH",headers:{Prefer:"return=representation"},
+        body:JSON.stringify({...patch,updated_at:new Date().toISOString()}),
+      });
+      if(!Array.isArray(result)||result.length!==1)
+        throw new Error("Automatic staging interrupted; existing images and manual changes must be inspected");
+    }
+    return response({ok:true,action:"premium_carousel_queued",job_id:job.id,
+      queued_interiors:3,publication_locked:true,publishing_enabled:false});
+  }
+  return response({ok:true,action:"idle",publication_locked:true,publishing_enabled:false});
+}
+
 async function prepareCarousel(req: Request) {
   await requireOwner(req);
   const body=await req.json().catch(()=>( {} )) as Json;
@@ -528,6 +602,7 @@ Deno.serve(async (req: Request) => {
     gpu_required:true,no_paid_api:true,model:"FLUX.2-klein-4B",
   });
   try {
+    if(req.method==="POST" && path.endsWith("/carousel/auto-prepare"))return await autoPrepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/benefits"))return await saveBenefits(req);
     if(req.method==="POST" && path.endsWith("/carousel/prepare"))return await prepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/claim"))return await claimCarousel(req);
