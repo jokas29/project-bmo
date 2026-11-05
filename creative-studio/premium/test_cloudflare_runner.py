@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from cloudflare_runner import MODEL,ProviderUnavailable,decode_response,generate_scene,reference_png
+from cloudflare_runner import MODEL,ProviderUnavailable,decode_response,generate_scene,reference_png,source_photo,produce
 
 def scene_b64():
     image=Image.new("RGB",(900,1125),(36,20,78))
@@ -77,5 +77,33 @@ class ModelTests(unittest.TestCase):
             def post(self,*args,**kwargs):self.fail("MUST NOT make request")
         with self.assertRaises(ValueError):
             generate_scene(p,self.source,"a"*32,"fake",session=Forbidden())
+
+class UniversalReferenceTests(unittest.TestCase):
+    def test_no_image_does_not_fetch_any_external_url(self):
+        class Forbidden:
+            def get(self,*args,**kwargs): self.fail("Should not fetch a missing source")
+        self.assertIsNone(source_photo(None,session=Forbidden()))
+        self.assertIsNone(source_photo("http://evil.example/test.jpg",session=Forbidden()))
+        self.assertIsNone(source_photo("https://private.example/test.jpg",session=Forbidden()))
+
+    def test_text_only_creative_has_no_fake_reference_upload(self):
+        observed={}
+        class Session:
+            def post(self,url,**kwargs):
+                observed["request"]=kwargs
+                return MockResponse()
+        scene=generate_scene(preview(),None,"a"*32,"test",session=Session())
+        self.assertEqual(scene.size,(900,1125))
+        self.assertNotIn("files",observed["request"])
+        self.assertIn("CONCEPTUAL",observed["request"]["data"]["prompt"])
+        self.assertIn("BOTTOM 82%",observed["request"]["data"]["prompt"])
+
+    def test_produce_marks_no_source_as_conceptual(self):
+        p=preview()
+        p.update({"processed":True,"original_url":None,"price":None})
+        with patch("cloudflare_runner.generate_scene",return_value=Image.new("RGB",(900,1125),(34,20,65))):
+            data,mode=produce(p,"a"*32,"test")
+        self.assertEqual(mode,"conceptual")
+        self.assertTrue(data.startswith(bytes([255,216,255])))
 
 if __name__=="__main__":unittest.main()
