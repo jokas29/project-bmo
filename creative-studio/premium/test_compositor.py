@@ -1,10 +1,11 @@
 """Offline visual invariants for the single-canvas DropEC editorial style."""
 import unittest
 from PIL import Image, ImageDraw
+from pathlib import Path
 
 from compositor import (
     W, H, HERO_TOP, HERO_BOTTOM, STYLES, _full_scene_geometry,
-    _background, build_poster, jpeg_bytes, source_quality
+    _background, _price_font, build_poster, jpeg_bytes, source_quality
 )
 
 
@@ -70,6 +71,23 @@ class PremiumUnifiedCanvasTests(unittest.TestCase):
             with self.subTest(product=product):
                 ad=build_poster(self.scene,self.reference,product,None,3)
                 self.assertEqual(ad.size,(W,H))
+
+    def test_no_cropped_ghost_mark_or_muddy_background_overlays(self):
+        source=Path(__file__).with_name("compositor.py").read_text()
+        self.assertNotIn('ghost.text(',source)
+        self.assertNotIn('ghost_font=load_font(162)',source)
+        self.assertIn('alpha = 28 if style["pale"] else 40',source)
+        self.assertNotIn('tint_strength = 192 if style["pale"] else 157',source)
+
+    def test_large_readable_price_and_safe_full_product_layout(self):
+        canvas=Image.new("RGB",(W,H))
+        draw=ImageDraw.Draw(canvas)
+        label,font=_price_font(draw,25.00)
+        self.assertEqual(label,"$25.00")
+        self.assertGreaterEqual(getattr(font,"size",0),70)
+        x,y,w,h=_full_scene_geometry(self.scene,HERO_TOP,HERO_BOTTOM)
+        self.assertGreaterEqual(w,800)
+        self.assertGreaterEqual(h,800)
 
     def test_palette_and_alignment_concepts_are_not_identical(self):
         a=_background(self.scene,1).convert("RGB")
