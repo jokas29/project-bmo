@@ -278,25 +278,12 @@ async function recoverStale() {
   }
 }
 async function autoQueueOne() {
-  const settings=await admin("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
-  if(!settings?.[0]?.enabled) return null;
-  const today=new Date().toISOString().slice(0,10)+"T00:00:00.000Z";
-  const completed=await admin("/rest/v1/dropec_creative_jobs?select=id&status=in.(generating,review,approved,ready_to_publish)&updated_at=gte."+encodeURIComponent(today)+"&limit=100");
-  if(completed.length>=Number(settings[0].max_jobs_per_day||3)) return null;
-  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,source_image_url&status=eq.pending&publication_locked=eq.true&order=created_at.asc&limit=10");
-  for(const job of jobs) {
-    const image=String(job.source_image_url||"");
-    if(!image.startsWith("storage://")&&!image.startsWith("https://d39ru7awumhhs2.cloudfront.net/ecuador/products/")) continue;
-    const slides=await admin("/rest/v1/dropec_creative_slides?select=id,status,image_path&job_id=eq."+job.id+"&order=slide_number.asc");
-    if(slides.length!==4 || !slides.every((s:any)=>s.status==="pending"&&!s.image_path)) continue;
-    const updated=await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id+"&status=eq.pending&publication_locked=eq.true",{
-      method:"PATCH",headers:{Prefer:"return=representation"},
-      body:JSON.stringify({status:"generating",publication_locked:true,updated_at:new Date().toISOString()})
-    });
-    if(Array.isArray(updated)&&updated.length) return job.id;
-  }
+  // The scheduled classic worker may complete manually enqueued classic slides,
+  // but automatic product selection belongs exclusively to the Premium
+  // violet/Anton pipeline. Never silently generate mismatched classic covers.
   return null;
 }
+
 async function processOne(autoSelect=true) {
   await recoverStale();
   const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,product_name,product_price,source_image_url,prompt_bundle,caption_draft,status&status=eq.generating&order=created_at.asc&limit=15");
