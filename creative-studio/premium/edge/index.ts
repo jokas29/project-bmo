@@ -349,12 +349,31 @@ async function ingestSelectedProducts(req:Request) {
     if(!Number.isSafeInteger(woo)||woo<=0||!Number.isSafeInteger(dropi)||dropi<=0||
        !Number.isFinite(price)||price<12||price>60||name.length<7||
        !photo||!benefits)continue;
-    const existing=await admin("/rest/v1/dropec_creative_jobs?select=id&woo_product_id=eq."+woo+"&limit=1");
-    if(existing.length)continue;
     const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("dropec-premium-woo-v1:"+woo)));
     digest[6]=(digest[6]&15)|80;digest[8]=(digest[8]&63)|128;
     const h=Array.from(digest.slice(0,16),b=>b.toString(16).padStart(2,"0")).join("");
     const id=h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20,32);
+    const existing=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&woo_product_id=eq."+woo+"&limit=1");
+    if(existing.length){
+      // A prior worker may have inserted the job but crashed before creating
+      // the four placeholders; repair only our deterministic, untouched draft.
+      const previous=existing[0];
+      if(previous.id===id && previous.status==="pending" && previous.publication_locked===true){
+        const s=await admin("/rest/v1/dropec_creative_slides?select=slide_number,status,image_path&job_id=eq."+id);
+        if(s.length<4 && s.every((x:any)=>x.status==="pending"&&!x.image_path)){
+          const missing=[1,2,3,4].filter(n=>!s.some((x:any)=>Number(x.slide_number)===n));
+          if(missing.length){
+            await admin("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number",{
+              method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+              body:JSON.stringify(missing.map(n=>({job_id:id,slide_number:n,
+                role:["portada","problema","beneficios","cierre"][n-1],status:"pending",image_path:null}))),
+            });
+            return response({ok:true,action:"recovered_missing_slides",job_id:id,publication_locked:true,publishing_enabled:false});
+          }
+        }
+      }
+      continue;
+    }
     const hashtags=["#DropEC","#Ecuador"];
     const caption=name+"\\n\\nPrecio de catálogo $"+price.toFixed(2)+
       " (sujeto a confirmación).\\nConsulta stock y costo de envío para tu ciudad antes de pagar."+
