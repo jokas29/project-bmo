@@ -50,6 +50,24 @@ class CreativeBriefTests(unittest.TestCase):
             self.assertIn("no text",value.lower())
             self.assertNotIn("$25",value)
 
+    def test_furniture_mover_uses_home_scene_not_generic_workshop(self):
+        name = "Juego de herramientas para mover muebles"
+        usage = carousel_scene_prompt(name, 2, "low_resolution_reference")
+        tips = carousel_scene_prompt(name, 3, "low_resolution_reference")
+        self.assertIn("furniture-moving tool", usage)
+        self.assertIn("home", usage)
+        self.assertIn("visible parts", usage)
+        self.assertIn("do not invent casters", usage)
+        self.assertNotIn("workshop bench", usage)
+        self.assertIn("clean home floor", tips)
+        self.assertIn("weight rating", tips)
+        self.assertNotIn("workbench", tips)
+        self.assertLessEqual(len(usage), 2000)
+        self.assertLessEqual(len(tips), 2000)
+        # Other types of tools must keep their category-specific handling.
+        generic = carousel_scene_prompt("Taladro de bricolaje", 2, "catalog_reference")
+        self.assertIn("workshop bench", generic)
+
     def test_context_prompt_remains_conceptual_without_reference(self):
         for number in (2,3,4):
             value=carousel_scene_prompt("Producto genérico",number,"conceptual")
