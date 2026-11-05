@@ -51,7 +51,7 @@ class EditorialPosterTests(unittest.TestCase):
             with self.subTest(variant=variant):
                 poster=self.poster(variant)
                 self.assertEqual(poster.size,(W,H))
-                self.assertTrue(jpeg_bytes(poster).startswith(b"\\xff\\xd8\\xff"))
+                self.assertTrue(jpeg_bytes(poster).startswith(bytes((255,216,255))))
                 d=ImageDraw.Draw(Image.new("RGB",(W,H)))
                 lines,font,line_h=_headline_layout("Máquina de ajo eléctrica",d)
                 fitted,x,y=_fit_product(_check_subject(self.subject),variant,137+len(lines)*line_h)
