@@ -98,7 +98,8 @@ jobs:
         id: generate
         run: |
           python3 creative-studio/premium/cloudflare_runner.py \
-            --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg 2>/tmp/dropec-gpu-error.log
+            --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg \
+            --reference-mode-output /tmp/dropec-reference-mode.txt 2>/tmp/dropec-gpu-error.log
 
       - name: Save to private Supabase Storage (never Meta)
         if: steps.generate.outcome == 'success'
@@ -110,6 +111,7 @@ jobs:
           set -euo pipefail
           curl --fail-with-body --silent --show-error --max-time 50 -X POST "$ENDPOINT/complete?preview_id=$PREVIEW_ID" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" \
+            -H "X-DropEC-Reference-Mode: $(cat /tmp/dropec-reference-mode.txt)" \
             --data-binary @/tmp/dropec-preview.jpg > /tmp/dropec-complete.json
           python3 -c 'import json;assert json.load(open("/tmp/dropec-complete.json"))["status"]=="ready";print("Private preview stored; no public posting")'
 
