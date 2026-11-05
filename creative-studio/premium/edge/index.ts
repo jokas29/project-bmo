@@ -256,6 +256,7 @@ async function prepareCarousel(req: Request) {
   await requireOwner(req);
   const body=await req.json().catch(()=>( {} )) as Json;
   const previewId=validatedJobId(body.preview_id);
+  const refreshInteriors=body.refresh_interiors===true;
   const selected=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,status,poster_path,reference_mode&id=eq."+previewId+"&limit=1");
   const cover=selected?.[0];
   if(!cover || cover.status!=="ready" || !cover.poster_path) return response({error:"Elige una portada Premium terminada"},409);
@@ -271,7 +272,9 @@ async function prepareCarousel(req: Request) {
   }
   const existing=slides.slice(1).every((x:any)=>
     x.status==="uploaded" && x.review_notes?.startsWith("Premium cinematográfico"));
-  if(existing && slides[0].image_path===cover.poster_path) {
+  if(refreshInteriors && slides[0].image_path!==cover.poster_path)
+    return response({error:"Para recrear interiores conserva la portada Premium actualmente seleccionada"},409);
+  if(existing && !refreshInteriors && slides[0].image_path===cover.poster_path) {
     return response({ok:true,already_prepared:true,queued:0,publication_locked:true,publishing_enabled:false});
   }
   // Archive old pictures before changing ANY path; never delete storage.
@@ -309,7 +312,7 @@ async function prepareCarousel(req: Request) {
     });
     if(!Array.isArray(changed)||changed.length!==1) return response({error:"Cambió el estado de la diapositiva; vuelve a revisar"},409);
   }
-  return response({ok:true,queued:3,job_id:job.id,publication_locked:true,
+  return response({ok:true,queued:3,refreshed:refreshInteriors,job_id:job.id,publication_locked:true,
     publishing_enabled:false,process_interval_minutes:15});
 }
 
@@ -331,7 +334,7 @@ async function claimCarousel(req: Request) {
     PREMIUM_CAROUSEL_PENDING+"&slide_number=in.(2,3,4)&order=slide_number.asc&limit=25");
   for(const item of rows) {
     if(item.render_after && Date.parse(item.render_after)>Date.now())continue;
-    const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,product_name,product_price,source_image_url&id=eq."+item.job_id+"&limit=1");
+    const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,product_name,product_price,source_image_url,prompt_bundle&id=eq."+item.job_id+"&limit=1");
     const job=jobs?.[0];
     if(!job || job.publication_locked!==true || job.status!=="review")continue;
     const cover=await admin("/rest/v1/dropec_creative_slides?select=image_path,status&job_id=eq."+job.id+"&slide_number=eq.1&limit=1");
@@ -347,10 +350,21 @@ async function claimCarousel(req: Request) {
     const number=Number(item.slide_number);
     const variant=({2:3,3:1,4:2} as Record<number,number>)[number];
     const original=allowedProductImage(job.source_image_url);
+    const custom=Array.isArray(job.prompt_bundle?.slides)
+      ? job.prompt_bundle.slides.find((x:any)=>x && Number(x.slide)===number)
+      : null;
+    const candidate=typeof custom?.headline==="string"?clean(custom.headline,90):"";
+    const heading=candidate && !/[\d$%]/.test(candidate) && !/garantiz|gratis|milagro|cura|descuento/i.test(candidate)
+      ? candidate:null;
+    const tipItems=number===3 && Array.isArray(custom?.tips) && custom.tips.length===3 &&
+      custom.tips.every((x:unknown)=>typeof x==="string" && clean(x,67).length>=8 &&
+        clean(x,67).length<=66 && !/[\d$%]/.test(clean(x,67)) && !/garantiz|cura|gratis|milagro/i.test(clean(x,67)))
+      ? custom.tips.map((x:unknown)=>clean(x,66)):null;
     return response({ok:true,processed:true,carousel:true,slide_number:number,
       slide_id:item.id,preview_id:item.id,variant,
       prompt:prompt(job.product_name,variant),
       product_name:clean(job.product_name,130),price:job.product_price,
+      slide_headline:number===4?null:heading,slide_tips:tipItems,
       original_url:original,original_available:!!original,
       publication_locked:true,conceptual_review_required:!original});
   }
@@ -380,8 +394,11 @@ async function completeCarousel(req: Request) {
     method:"PATCH",headers:{Prefer:"return=representation"},
     body:JSON.stringify({status:"uploaded",image_path:path,render_error:null,
       render_after:null,render_started_at:null,
-      review_notes:"Premium cinematográfico · "+(mode==="conceptual"?"IMAGEN ILUSTRATIVA; producto no verificado":"verificar fidelidad del producto")+
-        ". Revisión humana obligatoria, nunca publicar automáticamente.",
+      review_notes:"Premium cinematográfico · "+(mode==="conceptual"?"IMAGEN ILUSTRATIVA; producto no verificado. ":"")+
+        (slide.slide_number===2?"Uso por persona generado con IA: verificar manos, mecanismo real y seguridad. ":
+        slide.slide_number===3?"Tips para revisión: validar recomendaciones y escena con el producto real. ":
+        "Comprobar precio y contacto antes de compartir. ")+
+        "Revisión humana obligatoria, nunca publicar automáticamente.",
       updated_at:new Date().toISOString()}),
   });
   if(!Array.isArray(updated)||updated.length!==1)return response({error:"Lease changed during upload"},409);

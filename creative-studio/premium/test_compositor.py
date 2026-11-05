@@ -90,13 +90,25 @@ class CoverOnlyTests(unittest.TestCase):
                 outputs.append(result.tobytes())
         self.assertEqual(len(set(outputs)),3)
 
-    def test_carousel_title_and_price_are_audited_not_fabricated(self):
+    def test_contextual_usage_preserves_human_scene_not_a_product_cutout(self):
+        # A bright green "person" marker remains visible: the original
+        # isolation algorithm would instead discard it entirely.
+        context=Image.new("RGB",(1024,1024),(26,210,96))
+        with patch("compositor._extract_subject",side_effect=AssertionError(
+                "Usage and tips must not use product-only segmentation")):
+            usage=build_carousel_slide(
+                context,self.reference,"Máquina de ajo eléctrica",25,2,
+                headline="¿Picar ajo te toma tiempo?",subject=self.cutout)
+            tips=build_carousel_slide(
+                context,self.reference,"Máquina de ajo eléctrica",25,3,
+                headline="Ideas para preparar ingredientes",subject=self.cutout)
+        self.assertGreater(usage.getpixel((W//2,535))[1],120)
+        self.assertGreater(tips.getpixel((W//2,430))[1],120)
+        self.assertNotEqual(usage.tobytes(),tips.tobytes())
+
+    def test_storytelling_text_tips_and_price_are_audited(self):
         original=ImageDraw.ImageDraw.text
-        expected={
-            2:["MÍRALO","DE CERCA"],
-            3:["OTRA","PERSPECTIVA"],
-            4:["¿TE","INTERESA?","SOLICITA TU COTIZACIÓN","$25.00"]
-        }
+        outputs={}
         for number in (2,3,4):
             with self.subTest(number=number):
                 painted=[]
@@ -104,18 +116,47 @@ class CoverOnlyTests(unittest.TestCase):
                     painted.append(value)
                     return original(draw,xy,value,*args,**kwargs)
                 with patch.object(ImageDraw.ImageDraw,"text",spy):
-                    build_carousel_slide(self.scene,self.reference,
-                        "Máquina de ajo eléctrica",25,number,subject=self.cutout)
-                self.assertEqual(painted,expected[number])
-        painted=[]
-        def spy(draw,xy,value,*args,**kwargs):
-            painted.append(value)
+                    build_carousel_slide(
+                        self.scene,self.reference,"Máquina de ajo eléctrica",
+                        25,number,subject=self.cutout,
+                        headline=("¿Picar ajo te toma tiempo?" if number==2 else
+                                  "Prepara ingredientes con tu picadora"),
+                        tips=["PELA EL AJO","COLÓCALO EN EL RECIPIENTE",
+                              "LIMPIA SEGÚN EL MANUAL"] if number==3 else None)
+                outputs[number]=painted
+        self.assertIn("AJO", " ".join(outputs[2]))
+        self.assertNotIn("$25.00",outputs[2])
+        self.assertIn("01",outputs[3])
+        self.assertIn("02",outputs[3])
+        self.assertIn("03",outputs[3])
+        self.assertIn("LIMPIA", " ".join(outputs[3]))
+        self.assertNotIn("$25.00",outputs[3])
+        self.assertIn("$25.00",outputs[4])
+        self.assertIn("ESCRÍBENOS POR MENSAJE",outputs[4])
+        self.assertIn("PRECIO Y DISPONIBILIDAD POR CONFIRMAR",outputs[4])
+        self.assertNotIn("ESCRÍBENOS POR MENSAJE",outputs[2])
+        self.assertNotIn("ESCRÍBENOS POR MENSAJE",outputs[3])
+        without=[]
+        def spy2(draw,xy,value,*args,**kwargs):
+            without.append(value)
             return original(draw,xy,value,*args,**kwargs)
-        with patch.object(ImageDraw.ImageDraw,"text",spy):
+        with patch.object(ImageDraw.ImageDraw,"text",spy2):
             build_carousel_slide(self.scene,None,"Producto conceptual",
                                 None,4,reference_mode="conceptual",
                                 subject=self.cutout)
-        self.assertNotIn("$25.00",painted)
+        self.assertIn("PRECIO POR CONSULTAR",without)
+        self.assertNotIn("$25.00",without)
+
+    def test_interiors_reject_invented_price_and_unsupported_tip_fields(self):
+        from compositor import _clean_tips
+        with self.assertRaises(ValueError):
+            _clean_tips("Máquina de ajo eléctrica",["AHORRA 90%","MÁS RÁPIDO","FÁCIL"])
+        self.assertEqual(len(_clean_tips("Artículo genérico",None)),3)
+        for amount in (0,-1,float("inf"),float("nan")):
+            with self.assertRaises(ValueError):
+                build_carousel_slide(
+                    self.scene,self.reference,"Producto genérico",amount,4,
+                    subject=self.cutout)
 
     def test_carousel_foreground_is_complete_in_all_aspect_ratios(self):
         for number in (2,3,4):

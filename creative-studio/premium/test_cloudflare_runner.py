@@ -61,6 +61,25 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("data",observed["kwargs"])
         self.assertEqual(observed["kwargs"]["headers"]["Authorization"],"Bearer fake-token")
         self.assertFalse(observed["kwargs"]["allow_redirects"])
+    def test_carousel_claim_selects_usage_and_tips_scene_instead_of_cutout(self):
+        observed=[]
+        class Session:
+            def post(self,url,**kwargs):
+                observed.append(kwargs["files"]["prompt"][1])
+                return MockResponse()
+        item=preview()
+        item.update({"carousel":True,"slide_number":2,"variant":3})
+        generate_scene(item,self.source,"a"*32,"test",session=Session())
+        item["slide_number"]=3
+        generate_scene(item,self.source,"a"*32,"test",session=Session())
+        item["slide_number"]=4
+        generate_scene(item,self.source,"a"*32,"test",session=Session())
+        self.assertIn("LIFESTYLE PHOTO",observed[0])
+        self.assertIn("USEFUL TIPS BACKDROP",observed[1])
+        self.assertIn("ENTIRE PHYSICAL PRODUCT",observed[2])
+        self.assertNotIn("NO props, no floating ingredients, no hands",observed[0])
+        self.assertNotEqual(observed[0],observed[1])
+
     def test_402_quota_failure_no_fake_image(self):
         class Deny:
             def post(self,*args,**kwargs):return MockResponse(status=429)

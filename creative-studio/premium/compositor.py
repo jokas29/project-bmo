@@ -334,64 +334,167 @@ def _interior_title(canvas: Image.Image, value: str, *,
     return bottom
 
 
+def _story_headline(image: Image.Image, headline: str, *, y: int = 45,
+                    max_bottom: int = 224, max_lines: int = 3):
+    """Center each verified-copy line while retaining original Spanish accents."""
+    if not isinstance(headline,str) or not 2<=len(headline.strip())<=90:
+        raise ValueError("Invalid carousel headline")
+    value=" ".join(headline.upper().split())
+    if any(ch in value for ch in ("\n","\r","$","%")):
+        raise ValueError("Unverified claim or pricing in scene headline")
+    draw=ImageDraw.Draw(image)
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    for size in range(82,33,-2):
+        font=load_font(size)
+        lines=[]; current=""
+        for word in value.split():
+            candidate=(current+" "+word).strip()
+            if current and draw.textbbox((0,0),candidate,font=font)[2]>W-76:
+                lines.append(current); current=word
+            else: current=candidate
+        if current: lines.append(current)
+        stride=round(size*.92)
+        if len(lines)>max_lines or y+len(lines)*stride>max_bottom:continue
+        if any(draw.textbbox((0,0),line,font=font)[2]>W-76 for line in lines):continue
+        for index,line in enumerate(lines):
+            bounds=draw.textbbox((0,0),line,font=font)
+            x=round((W-(bounds[2]-bounds[0]))/2-bounds[0])
+            draw.text((x,y+index*stride),line,font=font,
+                      fill=lime if index==len(lines)-1 else INK)
+        return y+len(lines)*stride
+    raise ValueError("Carousel headline cannot fit")
+
+
+def _contextual_photo(art: Image.Image, scene: Image.Image, *,
+                      y: int, height: int, focus: float=.5):
+    """Show generated photography including people; no subject extraction."""
+    if min(scene.size)<640:raise ValueError("Context scene too small")
+    photo=ImageOps.fit(ImageOps.exif_transpose(scene.convert("RGB")),
+                       (W,height),method=Image.Resampling.LANCZOS,
+                       centering=(focus,.5)).convert("RGBA")
+    mask=Image.new("L",(W,height),0)
+    strips=ImageDraw.Draw(mask)
+    fade=min(98,max(30,height//6))
+    for i in range(height):
+        alpha=round(248*min(1,(i+1)/fade,(height-i)/fade))
+        strips.line((0,i,W,i),fill=alpha)
+    photo.putalpha(mask)
+    art.alpha_composite(photo,(0,y))
+    return art
+
+
+def _clean_tips(product_name: str, tips: Optional[list[str]]) -> list[str]:
+    """Short actionable guidance; avoid claims of measurements or performance."""
+    from creative_brief import category_for_name
+    fallback={
+        "cocina": ["PREPARA LOS INGREDIENTES","CONSULTA LAS INDICACIONES","LIMPIA SEGÚN EL MANUAL"],
+        "tecnologia": ["REVISA LA COMPATIBILIDAD","SIGUE LA GUÍA DEL EQUIPO","GUÁRDALO EN LUGAR SEGURO"],
+        "herramientas": ["PREPARA EL ESPACIO DE TRABAJO","USA LA PROTECCIÓN ADECUADA","SIGUE LAS INDICACIONES"],
+        "bienestar": ["LEE LAS INDICACIONES","REVISA LOS INGREDIENTES","GUARDA SEGÚN EL ENVASE"],
+        "deporte": ["REVISA LAS INSTRUCCIONES","ADAPTA EL USO A TU RUTINA","GUÁRDALO CORRECTAMENTE"],
+        "hogar": ["PLANIFICA DÓNDE USARLO","SIGUE EL MANUAL","LÍMPIALO CON CUIDADO"],
+        "general": ["REVISA LAS INSTRUCCIONES","UTILÍZALO SEGÚN EL MANUAL","GUÁRDALO CON CUIDADO"],
+    }
+    if tips is None:return fallback[category_for_name(product_name)]
+    if not isinstance(tips,(tuple,list)) or len(tips)!=3:
+        raise ValueError("Tips must contain exactly three entries")
+    cleaned=[]
+    for item in tips:
+        if not isinstance(item,str):raise ValueError("Invalid tip type")
+        text=" ".join(item.upper().split())
+        if not 8<=len(text)<=66 or any(x in text for x in ("$","%","\n","\r")):
+            raise ValueError("Unsafe or overly long tip")
+        cleaned.append(text)
+    return cleaned
+
+
+def _tip_cards(art: Image.Image, tips: list[str]):
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    d=ImageDraw.Draw(art)
+    for i,tip in enumerate(tips):
+        top=654+i*139
+        d.rounded_rectangle((33,top,W-33,top+125),radius=22,
+                            fill=(41,20,74,242),outline=(132,88,177,230),width=2)
+        d.text((58,top+24),f"0{i+1}",font=load_font(44),fill=lime)
+        left=145; words=tip.split()
+        for size in range(41,24,-2):
+            font=load_font(size)
+            lines=[]; current=""
+            for word in words:
+                candidate=(current+" "+word).strip()
+                if current and d.textbbox((0,0),candidate,font=font)[2]>W-left-68:
+                    lines.append(current);current=word
+                else:current=candidate
+            if current:lines.append(current)
+            if len(lines)<=2 and all(d.textbbox((0,0),s,font=font)[2]<=W-left-68 for s in lines):
+                base_y=top+(125-len(lines)*round(size*1.04))//2
+                for j,segment in enumerate(lines):
+                    d.text((left,base_y+j*round(size*1.04)),segment,font=font,fill=INK)
+                break
+        else:raise ValueError("Tip cannot fit in legible card")
+
+
 def build_carousel_slide(scene: Image.Image, original: Optional[Image.Image],
                          product_name: str, price: Optional[float],
                          slide_number: int, *,
                          reference_mode: str="catalog_reference",
-                         subject: Optional[Image.Image]=None) -> Image.Image:
-    """Premium interior (2–4); the cover remains the approved design.
-
-    A fresh AI scene supplies the product cutout, never the original
-    listing advertisement. Copy is limited to generic, reviewable
-    storytelling and the *actual* catalogue price, if known. No
-    unsupported technical specifications or product performances.
-    """
+                         subject: Optional[Image.Image]=None,
+                         headline: Optional[str]=None,
+                         tips: Optional[list[str]]=None) -> Image.Image:
+    """Real-life use, practical tips and conversion. Cover is untouched."""
     if slide_number not in (2,3,4):
         raise ValueError("Only inner slides 2, 3 and 4")
-    if reference_mode not in MODES:
-        raise ValueError("Unapproved reference mode")
-    if original is not None:
-        source_quality(original)
+    if reference_mode not in MODES:raise ValueError("Unapproved reference mode")
+    if original is not None:source_quality(original)
     if not isinstance(product_name,str) or not 2<=len(product_name.strip())<=120:
         raise ValueError("Invalid catalogue product name")
     if price is not None:
         price=float(price)
         if not math.isfinite(price) or price<=0:
             raise ValueError("Invalid catalogue price")
-
-    # Reuse the brand's studio light language across the carousel, but
-    # vary ambient hue and framing so interiors are not cloned covers.
-    bg_variant={2:3,3:1,4:2}[slide_number]
-    art=_editorial_background(bg_variant)
-    heading={2:"MÍRALO DE CERCA",3:"OTRA PERSPECTIVA",4:"¿TE INTERESA?"}[slide_number]
-    heading_bottom=_interior_title(art,heading,size=77 if slide_number==3 else 86)
+    art=_editorial_background({2:3,3:1,4:2}[slide_number])
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    if slide_number==2:
+        _story_headline(art,headline or "EN TU DÍA A DÍA",max_bottom=235)
+        _contextual_photo(art,scene,y=218,height=877)
+        return art.convert("RGB")
+    if slide_number==3:
+        _story_headline(art,headline or "TIPS DE USO",max_bottom=208)
+        _contextual_photo(art,scene,y=191,height=469)
+        _tip_cards(art,_clean_tips(product_name,tips))
+        return art.convert("RGB")
+    # Only the closing slide remains a whole-object hero on the studio stage.
+    _interior_title(art,"¿TE INTERESA?",size=86)
     body=_extract_subject(scene) if subject is None else _check_subject(subject)
-    extra_bottom=184 if slide_number==4 else 38
-    foreground,x,y=_fit_carousel_subject(body,slide_number,heading_bottom,extra_bottom)
+    foreground,x,y=_fit_carousel_subject(body,4,220,301)
     art=Image.alpha_composite(art,_shadow_product(foreground,x,y))
     art.alpha_composite(foreground,(x,y))
-    draw=ImageDraw.Draw(art)
-    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
-    if slide_number==4:
-        # Only in the final slide: documented catalogue price + quote request.
-        draw.line((48,H-169,W-48,H-169),fill=(*lime,150),width=2)
-        label="SOLICITA TU COTIZACIÓN"
-        label_font=load_font(31)
-        bb=draw.textbbox((0,0),label,font=label_font)
-        draw.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-151),
-                  label,font=label_font,fill=INK)
-        if price is not None:
-            amount=f"${price:,.2f}"
-            for point_size in range(66,29,-2):
-                pf=load_font(point_size)
-                if draw.textbbox((0,0),amount,font=pf)[2]<=W-110:
-                    break
-            else:
-                raise ValueError("Catalogue price cannot fit")
-            bb=draw.textbbox((0,0),amount,font=pf)
-            draw.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-102),amount,
-                      font=pf,fill=lime)
+    d=ImageDraw.Draw(art)
+    d.line((43,H-295,W-43,H-295),fill=(*lime,200),width=3)
+    label="PRECIO DE CATÁLOGO"
+    lf=load_font(29)
+    bb=d.textbbox((0,0),label,font=lf)
+    d.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-283),
+           label,font=lf,fill=INK)
+    amount="$"+format(price,",.2f") if price is not None else "PRECIO POR CONSULTAR"
+    for size in range(84,29,-2):
+        af=load_font(size)
+        bb=d.textbbox((0,0),amount,font=af)
+        if bb[2]-bb[0]<=W-92:break
+    d.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-240),
+           amount,font=af,fill=lime)
+    contact="ESCRÍBENOS POR MENSAJE"
+    cf=load_font(43)
+    bb=d.textbbox((0,0),contact,font=cf)
+    d.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-140),
+           contact,font=cf,fill=INK)
+    note="PRECIO Y DISPONIBILIDAD POR CONFIRMAR"
+    nf=load_font(24)
+    bb=d.textbbox((0,0),note,font=nf)
+    d.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-63),
+           note,font=nf,fill=INK)
     return art.convert("RGB")
+
 
 def jpeg_bytes(image: Image.Image) -> bytes:
     output = BytesIO()

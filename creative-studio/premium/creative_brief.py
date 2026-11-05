@@ -14,7 +14,7 @@ _SCENES = (
     "Polished commercial product photo, angled slightly from the front, accurate materials, clear physical silhouette.",
 )
 _CONTEXT = {
-    "cocina": ("cocina", "alimento", "olla", "cuchillo", "picador", "licuadora", "cortar", "utensilio", "horno", "sarten", "chef", "cafetera"),
+    "cocina": ("cocina", "alimento", "olla", "cuchillo", "picador", "picadora", "ajo", "licuadora", "triturador", "procesador", "freidora", "cortar", "utensilio", "horno", "sarten", "chef", "cafetera"),
     "tecnologia": ("electronico", "tecnologia", "auricular", "telefono", "cargador", "bluetooth", "computador", "usb", "parlante", "camara"),
     "herramientas": ("herramienta", "destornillador", "taladro", "martillo", "tornillo", "bricolaje", "mueble", "llave", "alicate"),
     "bienestar": ("cosmetico", "belleza", "piel", "maquillaje", "crema", "cabello", "cuidado", "masaje", "perfume", "salud"),
@@ -94,4 +94,77 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         "The DropEC compositor will add its own verified Spanish text and "
         "brand design after the product has been isolated.",
         "Product name for thematic context only: " + " ".join(product_name.split()) + ".",
+    ))
+
+
+# Unlike the isolated-cover brief, these are explicit contextual scenes.
+# The public ad is composited by Pillow; model-rendered text is prohibited.
+_USAGE_CONTEXT = {
+    "cocina": "A real adult cook in a tidy home kitchen gently operating the referenced kitchen item on a worktop, with appropriate fresh ingredients. If it is an electric food chopper, show the container closed with one hand pressing its existing top control while it rests on the worktop. Never touch blades, open a motorized appliance while running, or depict unknown accessories.",
+    "tecnologia": "An adult using the referenced electronic item in a realistic home or desk setting, only with interaction supported by its visible physical controls. Avoid invented screens, app interfaces or connection ports.",
+    "herramientas": "An adult demonstrating a safe, physically plausible use at a neat workshop bench. Include protective gear where appropriate; avoid high-risk, live electrical or hazardous-tool demonstrations.",
+    "bienestar": "A person showing the product as part of an ordinary personal-care routine, with no treatment, medical, skin-transformation or efficacy implication.",
+    "deporte": "An adult in a normal training setting interacting with the product safely. Never imply an athletic result, metric, injury prevention or medical benefit.",
+    "hogar": "An adult using or placing the referenced product naturally in a real home setting without adding hidden features or accessories.",
+    "general": "A real adult interacting with the product in an everyday location only if the depicted use is unambiguous from its appearance; otherwise show the person examining the item rather than inventing operation.",
+}
+_DETAIL_CONTEXT = {
+    "cocina": "A realistic kitchen preparation still-life with the product beside ordinary fresh ingredients and a cutting board. No invented extra parts, no food inside a sealed product unless physically plausible.",
+    "tecnologia": "A tasteful real desk setting with the product and a neutral notebook; avoid invented displays or app screenshots.",
+    "herramientas": "A realistic clean workbench scene with the product and only neutral workshop surfaces, no staged hazardous use.",
+    "bienestar": "An understated personal-care countertop and natural material details, no before-and-after comparison.",
+    "deporte": "A clean gym or living-room practice context with the product and no promised results.",
+    "hogar": "A tasteful lived-in interior with the product situated in context, no fabricated functions.",
+    "general": "A realistic everyday setting appropriate to the item's verified appearance; no unverified operational scenario.",
+}
+
+
+def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: str) -> str:
+    """Role-specific FLUX scene. People must remain in slide 2; scene 3 is contextual.
+
+    The cover and sales close still use the isolated-product prompt. This
+    function never asks FLUX to write claims, headlines, labels or prices.
+    """
+    if not isinstance(product_name, str) or not (2 <= len(product_name.strip()) <= 120):
+        raise ValueError("Invalid product name")
+    if slide_number not in (2, 3, 4):
+        raise ValueError("Invalid carousel slide")
+    if reference_mode not in ("catalog_reference","promotional_reference","low_resolution_reference","conceptual","legacy_overlay"):
+        raise ValueError("Invalid reference mode")
+    if slide_number == 4:
+        # Conversion image retains the accurate, full object cutout.
+        return scene_prompt(product_name, 2, reference_mode)
+    category = category_for_name(product_name)
+    has_ref = reference_mode != "conceptual"
+    reference = (
+        "Image 0 is an actual catalogue-photo reference. Respect its exact observable "
+        "physical silhouette, colors, controls and components. Ignore listing text, "
+        "decorative graphics and original marketing background. Never add attachments. "
+        if has_ref else
+        "There is NO verified product photo. The image is CONCEPTUAL only; do not "
+        "invent a recognizable exact model, brand, special feature or accessory. "
+    )
+    composition = (
+        "LIFESTYLE PHOTO FOR SLIDE 2: " + _USAGE_CONTEXT[category] + " "
+        "Person, natural hands, actual interaction and product must all be visible "
+        "within the CENTER 65% of the square image; preserve human hands and faces. "
+        "Medium shot, lived-in authentic environment, believable scale and contact "
+        "with the surface. Never isolate the product against blank gray. "
+        if slide_number == 2 else
+        "USEFUL TIPS BACKDROP FOR SLIDE 3: " + _DETAIL_CONTEXT[category] + " "
+        "Premium contextual still-life, top-down or elegant diagonal angle, "
+        "different from the usage photo, product smaller than the human demonstration. "
+        "Composition centered with real environmental objects. No isolated cutout. "
+    )
+    return " ".join((
+        reference, composition,
+        "Realistic editorial photography, subtle violet and warm magenta ambient lighting, "
+        "natural material detail, professional documentary-like camera. "
+        "Keep the item visually consistent with the provided reference. "
+        "Do not illustrate unsafe or imaginary use, do not imply guaranteed outcomes, "
+        "health effects, savings, wattage, size, compatibility or extra functionality. "
+        "ONE continuous photographic scene, no collage, no infographics, no fake interface. "
+        "NO text, logos, numbers, prices, captions, labels, watermarks or lettering in image. "
+        "No floating product shots. Product name is contextual, not a claim: "
+        + " ".join(product_name.split()) + ".",
     ))

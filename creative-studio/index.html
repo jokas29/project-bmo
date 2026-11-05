@@ -322,13 +322,18 @@ async function adoptPremium(preview){
   await refreshCloud(true);await refreshPremium(true);
  }catch(e){msg("No se adoptó: "+e.message,true)}
 }
-async function preparePremiumCarousel(preview){
+async function preparePremiumCarousel(preview,refreshInteriors=false){
  if(!job||!session||preview.status!=="ready")return;
- if(!window.confirm("¿Usar esta portada y generar las diapositivas 2, 3 y 4 con el MISMO estilo cinematográfico? Se conservarán las imágenes anteriores en el historial privado. No se publicará nada."))return;
+ const question=refreshInteriors
+  ?"¿Recrear solo las diapositivas 2, 3 y 4 como escenas de uso, consejos y contacto? La portada aprobada visualmente no cambiará. Las versiones anteriores se conservarán de forma privada. No se publicará."
+  :"¿Usar esta portada y generar un carrusel narrativo: persona usando el producto, consejos y cierre con precio/contacto? Se conservarán las versiones anteriores. No se publicará.";
+ if(!window.confirm(question))return;
  try{
-  const result=await api(PREMIUM_API+"/carousel/prepare","POST",{preview_id:preview.id});
+  const result=await api(PREMIUM_API+"/carousel/prepare","POST",
+    {preview_id:preview.id,refresh_interiors:refreshInteriors});
   if(!result.ok)throw Error(result.error||"No se pudo preparar el carrusel.");
-  msg(result.already_prepared?"Este carrusel Premium ya está preparado.":"Portada centrada seleccionada; tres diapositivas Premium en cola. GitHub las genera automáticamente sin usar el Mac.");
+  msg(result.already_prepared?"Este carrusel ya está preparado. Usa «Recrear interiores 2–4» para actualizar su narrativa.":
+    "Portada conservada; tres escenas narrativas Premium en cola privada. GitHub las genera sin usar el Mac.");
   await refreshCloud(true);await refreshPremium(true);
  }catch(e){msg("Carrusel Premium: "+e.message,true)}
 }
@@ -398,6 +403,9 @@ async function refreshPremium(silent=false){
     if(!["approved","ready_to_publish","archived"].includes(job.status)&&!slides.some(s=>s.slide_number===1&&["approved","rendering"].includes(s.status))){
      body.append(button("Usar como portada para revisar",()=>adoptPremium(p)));
      body.append(button("Crear carrusel Premium de 4 diapositivas",()=>preparePremiumCarousel(p),"primary"));
+     if(slides.some(s=>s.slide_number===1&&s.image_path===p.poster_path)&&slides.slice(1).some(s=>s.image_path&&s.image_path.includes("/premium/"))){
+      body.append(button("Recrear interiores 2–4 (conservar portada)",()=>preparePremiumCarousel(p,true)));
+     }
     }
    }
    if(!["approved","ready_to_publish","archived"].includes(job.status)&&p.status!=="processing"){
