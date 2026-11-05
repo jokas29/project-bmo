@@ -25,11 +25,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install free editorial Lato typography
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-lato
-      - name: Verify no GPU dependencies are needed by the CPU compositor
+      - name: Install pinned public-license Anton and CPU renderer
         run: |
           python -m pip install --disable-pip-version-check Pillow==12.1.0 requests==2.32.5
+          bash creative-studio/premium/install_display_font.sh
+      - name: Verify only title and unoccluded product are rendered
+        run: |
           python -m unittest discover -s creative-studio/premium -p 'test_*.py' -v
           python -m py_compile creative-studio/premium/runner.py creative-studio/premium/space/app.py
       - name: Verify free CPU segmentation model loads
@@ -75,21 +76,20 @@ jobs:
               compositor.includes('dr.rounded_rectangle((72,panel_top')) {
             throw new Error('Premium must not paste the source advertisement over generated scene')
           }
-          if (!compositor.includes('reference_mode=="conceptual"') ||
-              !compositor.includes('IMAGEN ILUSTRATIVA') ||
-              !compositor.includes('SubjectExtractionError')) {
-            throw new Error('Conceptual labeling or fail-closed image extraction missing')
+          if (!compositor.includes('SubjectExtractionError') ||
+              !html.includes('IMAGEN ILUSTRATIVA')) {
+            throw new Error('No-image warning must remain in owner UI, and cutout extraction must fail closed')
           }
           const theme = JSON.parse(fs.readFileSync('creative-studio/premium/editorial_theme.json','utf8'))
           if (theme.formato.ancho!==736 || theme.formato.alto!==1104 ||
               theme.formato.proporcion!=='2:3' ||
               theme.estilo.fondo!=='#F5F3EF' ||
-              theme.estilo.colores.principal!=='#000000' ||
               theme.estilo.colores.fondo_central!=='#AAA6A0' ||
-              theme.composicion.panel_central.ancho!=='28%' ||
-              theme.textos.contacto.telefono!==null ||
-              theme.textos.contacto.direccion!==null) {
-            throw new Error('Approved DropEC JSON design or verified-contact safeguards changed')
+              theme.estilo.tipografia.familia!=='Anton' ||
+              JSON.stringify(theme.textos.permitidos_en_portada)!=='["nombre_producto"]' ||
+              !theme.instrucciones.verificacion_humana_antes_de_publicar ||
+              theme.instrucciones.publicacion_automatica!==false) {
+            throw new Error('Only product name plus foreground image can appear in staging Premium cover')
           }
           const cloud = fs.readFileSync('creative-studio/premium/cloudflare_runner.py','utf8')
           if (!cloud.includes('source_photo(preview.get("original_url"))') ||
@@ -107,19 +107,22 @@ jobs:
               !compositor.includes('_headline_layout') ||
               !compositor.includes('_extract_subject') ||
               !compositor.includes('_fit_product') ||
-              !compositor.includes('load_font(318,"black")') ||
+              !compositor.includes('Anton-Regular.ttf') ||
               !compositor.includes('Image.alpha_composite') ||
-              compositor.includes('ghost.text(') ||
-              compositor.includes('PRICE_PANEL_TOP') ||
-              compositor.includes('_organic_shapes')) {
-            throw new Error('Luxury editorial design must have true Lato headline, gray center strip, large index and unoccluded product')
+              compositor.includes('_tracked(') ||
+              compositor.includes('_money(') ||
+              compositor.includes('EDICIÓN') ||
+              compositor.includes('PRECIO DE CATÁLOGO') ||
+              compositor.includes('SOLICITA TU COTIZACIÓN')) {
+            throw new Error('Only a heavy condensed product-name headline and isolated full product can be rendered')
           }
           const cf = fs.readFileSync('.github/workflows/dropec-premium-cloudflare-ai.yml','utf8')
           const hf = fs.readFileSync('.github/workflows/dropec-premium-gpu.yml','utf8')
           if(!cf.includes("rembg[cpu]==2.0.86") ||
              !hf.includes("rembg[cpu]==2.0.86") ||
-             !cf.includes('fonts-lato') || !hf.includes('fonts-lato')) {
-            throw new Error('Both free Premium runners must remove background on CPU')
+             !cf.includes('install_display_font.sh') ||
+             !hf.includes('install_display_font.sh')) {
+            throw new Error('Both free-only Premium runners need CPU matting and pinned display typography')
           }
           if (!free.includes("cron: '*/15 * * * *'")) {
             throw new Error('Premium backlog no longer has timely automatic checks')
