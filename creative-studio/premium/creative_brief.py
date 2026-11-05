@@ -135,6 +135,11 @@ def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: 
         # Conversion image retains the accurate, full object cutout.
         return scene_prompt(product_name, 2, reference_mode)
     category = category_for_name(product_name)
+    # Furniture relocation tools are used beside actual furniture, not on a
+    # workshop bench. Keep specificity limited to the catalogued product name.
+    is_furniture_mover = bool(re.search(
+        r"\\b(?:mover|desplazar|trasladar)\\b.{0,30}\\bmuebles\\b",
+        normalize(product_name)))
     has_ref = reference_mode != "conceptual"
     reference = (
         "Image 0 is an actual catalogue-photo reference. Respect its exact observable "
@@ -144,14 +149,30 @@ def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: 
         "There is NO verified product photo. The image is CONCEPTUAL only; do not "
         "invent a recognizable exact model, brand, special feature or accessory. "
     )
+    usage = (
+        "A real adult in a tidy home carefully demonstrating the referenced "
+        "furniture-moving tool near a sofa or cabinet leg on a cleared floor, "
+        "with the device physically touching the furniture only in a manner "
+        "supported by its visible parts. Keep adult, tool, furniture leg and "
+        "natural hand placement visible; do not invent casters, lifting levers "
+        "or supports not discernible in the reference. Never depict furniture "
+        "hovering, an unstable load, trapped fingers or a person standing "
+        "beneath a raised object."
+        if is_furniture_mover else _USAGE_CONTEXT[category])
+    details = (
+        "A clean home floor beside a cabinet or sofa, with the actual "
+        "furniture-moving tool laid out for examination and clear floor space "
+        "around it. Do not fabricate any device components or claim a "
+        "weight rating. No unsafe furniture lifting or staged hazardous load."
+        if is_furniture_mover else _DETAIL_CONTEXT[category])
     composition = (
-        "LIFESTYLE PHOTO FOR SLIDE 2: " + _USAGE_CONTEXT[category] + " "
+        "LIFESTYLE PHOTO FOR SLIDE 2: " + usage + " "
         "Person, natural hands, actual interaction and product must all be visible "
         "within the CENTER 65% of the square image; preserve human hands and faces. "
         "Medium shot, lived-in authentic environment, believable scale and contact "
         "with the surface. Never isolate the product against blank gray. "
         if slide_number == 2 else
-        "USEFUL TIPS BACKDROP FOR SLIDE 3: " + _DETAIL_CONTEXT[category] + " "
+        "USEFUL TIPS BACKDROP FOR SLIDE 3: " + details + " "
         "Premium contextual still-life, top-down or elegant diagonal angle, "
         "different from the usage photo, product smaller than the human demonstration. "
         "Composition centered with real environmental objects. No isolated cutout. "
