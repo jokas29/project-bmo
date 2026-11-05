@@ -294,7 +294,7 @@ async function processOne(autoSelect=true) {
       await ensureCaption(job);
       const {data,warning}=await compose(job,Number(pending.slide_number));
       const path=job.id+"/auto/slide-"+pending.slide_number+"-"+Date.now()+".jpg";
-      await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:data});
+      await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:new Uint8Array(data).buffer});
       await admin("/rest/v1/dropec_creative_slides?id=eq."+pending.id+"&status=eq.rendering",{method:"PATCH",body:JSON.stringify({image_path:path,status:"uploaded",review_notes:warning,render_started_at:null,render_after:null,render_error:null})});
       const latest=await admin("/rest/v1/dropec_creative_slides?select=status&job_id=eq."+job.id);
       if(latest.length===4 && latest.every((s:any)=>["uploaded","approved"].includes(s.status))) {
