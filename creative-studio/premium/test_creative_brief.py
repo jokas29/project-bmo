@@ -20,7 +20,8 @@ class CreativeBriefTests(unittest.TestCase):
             for mode in ("catalog_reference","conceptual","low_resolution_reference"):
                 with self.subTest(v=v,mode=mode):
                     prompt=scene_prompt("Producto para cocina",v,mode)
-                    self.assertIn("BOTTOM 82%",prompt)
+                    self.assertIn("AT LEAST 12% background clearance",prompt)
+                    self.assertIn("ENTIRE PHYSICAL PRODUCT",prompt)
                     self.assertIn("NO writing",prompt)
                     self.assertIn("Product name",prompt)
                     self.assertNotIn("$",prompt)
