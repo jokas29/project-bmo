@@ -6,6 +6,7 @@ The model runs server-side via Workers AI REST; GitHub Actions acts as caller.
 from __future__ import annotations
 import argparse
 import base64
+import hashlib
 from io import BytesIO
 import json
 import math
@@ -108,7 +109,13 @@ def generate_scene(preview: dict,original: Image.Image | None,account: str,token
             scene_prompt(str(preview["product_name"]),variation,reference_mode))
     if len(prompt)>2000:
         raise ValueError("Scene brief too long")
-    seed=(int(preview["preview_id"].replace("-","")[:7],16)+variation*104729)%(2**32)
+    # A new authenticated lease must not reproduce the same image after
+    # an owner-requested regeneration of a fixed preview/slide UUID.
+    nonce=preview.get("generation_nonce")
+    if nonce is not None and (not isinstance(nonce,str) or not re.fullmatch(r"[a-f0-9-]{36}",nonce,re.I)):
+        raise ValueError("Invalid generation nonce")
+    entropy=int.from_bytes(hashlib.sha256(nonce.encode()).digest()[:4],"big") if nonce else 0
+    seed=(int(preview["preview_id"].replace("-","")[:7],16)+variation*104729+entropy)%(2**32)
     api=("https://api.cloudflare.com/client/v4/accounts/"+account+
          "/ai/run/"+MODEL)
     # Cloudflare FLUX.2 requires multipart/form-data EVEN for text-only input.
