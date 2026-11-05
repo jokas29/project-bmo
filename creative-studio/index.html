@@ -39,7 +39,7 @@
  </div>
  <div class="bridge" id="premiumlab">
   <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
-  <p class="muted">Portadas editoriales privadas (736 × 1104, formato 2:3). Cada portada lleva únicamente el nombre real del producto en Anton ultragruesa y el producto grande y completo, dentro de un estudio visual morado con iluminación, textura, reflejos y detalles decorativos discretos. Sin logos, números, precios ni botones. La fotografía del catálogo guía la generación si existe; cuando no existe, la advertencia conceptual aparece solo en la revisión. GitHub procesa la cola aproximadamente cada 15 minutos (puede retrasarse). Nada se publica automáticamente.</p>
+  <p class="muted">Portadas editoriales privadas (736 × 1104, formato 2:3). La portada presenta el nombre centrado en Anton ultragruesa y el producto completo en un estudio visual morado. Cuando apruebes visualmente una de las tres alternativas de portada, elige «Crear carrusel Premium»: generaremos automáticamente tres imágenes interiores distintas, con el mismo ambiente cinematográfico, textos seguros y precio solo en el cierre cuando esté verificado. Las fotografías del catálogo guían a la IA si existen; sin foto, la revisión advierte que es conceptual. Formato editorial privado 2:3, aún no adaptado para publicar. GitHub consulta la cola aproximadamente cada 15 minutos. Nada se publica automáticamente.</p>
   <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar hasta 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
   <div class="cards" id="premiumpreviews"></div>
@@ -321,6 +321,16 @@ async function adoptPremium(preview){
   await refreshCloud(true);await refreshPremium(true);
  }catch(e){msg("No se adoptó: "+e.message,true)}
 }
+async function preparePremiumCarousel(preview){
+ if(!job||!session||preview.status!=="ready")return;
+ if(!window.confirm("¿Usar esta portada y generar las diapositivas 2, 3 y 4 con el MISMO estilo cinematográfico? Se conservarán las imágenes anteriores en el historial privado. No se publicará nada."))return;
+ try{
+  const result=await api(PREMIUM_API+"/carousel/prepare","POST",{preview_id:preview.id});
+  if(!result.ok)throw Error(result.error||"No se pudo preparar el carrusel.");
+  msg(result.already_prepared?"Este carrusel Premium ya está preparado.":"Portada centrada seleccionada; tres diapositivas Premium en cola. GitHub las genera automáticamente sin usar el Mac.");
+  await refreshCloud(true);await refreshPremium(true);
+ }catch(e){msg("Carrusel Premium: "+e.message,true)}
+}
 async function regeneratePremium(preview){
  if(!job||!session)return;
  if(!window.confirm("¿Generar otra propuesta con el diseño universal? La imagen anterior se conservará en el historial privado. NO se publicará."))return;
@@ -385,7 +395,8 @@ async function refreshPremium(silent=false){
     signed(p.poster_path).then(url=>img.src=url).catch(e=>body.append(text("small",e.message,"error")));
     body.append(button("Ver / descargar",async()=>{try{window.open(await signed(p.poster_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}));
     if(!["approved","ready_to_publish","archived"].includes(job.status)&&!slides.some(s=>s.slide_number===1&&["approved","rendering"].includes(s.status))){
-     body.append(button("Usar como portada para revisar",()=>adoptPremium(p),"primary"));
+     body.append(button("Usar como portada para revisar",()=>adoptPremium(p)));
+     body.append(button("Crear carrusel Premium de 4 diapositivas",()=>preparePremiumCarousel(p),"primary"));
     }
    }
    if(!["approved","ready_to_publish","archived"].includes(job.status)&&p.status!=="processing"){
