@@ -18,10 +18,16 @@ Images are drafts for the owner, not public publications.
 1. Owner presses **Preparar 3 ideas Premium** in Creative Studio.
 2. Staging Edge Function authenticates the owner and inserts three isolated
    queue records (no effect on existing slides).
-3. Every 30 minutes, GitHub Actions starts a runner **only when**
-   repository variable `DROPEC_HF_SPACE` contains a configured Space id.
-4. Short-lived GitHub OIDC token binds the worker to the exact main-branch
-   workflow. The worker claims at most one request per execution.
+3. Every 30 minutes, GitHub Actions performs a **read-only preflight**:
+   it checks that the configured Space exists, is RUNNING, and has
+   `zero-a10g` hardware. Both the Space identifier and the HF token must
+   exist. **Only a confirmed free ZeroGPU runtime permits a queue claim.**
+   HTTP 402 (account age), 404 (Space missing), a private access failure,
+   interrupted builds, network errors, paid GPUs and CPU-only hardware
+   safely skip the run without changing the staging queue.
+4. Only after the preflight succeeds, short-lived GitHub OIDC binds the
+   worker to the exact main-branch workflow. It claims at most one private
+   preview per execution. All unavailable checks leave attempts at zero.
 5. Runner accepts only a verified public original product image at the known
    catalogue CloudFront host, requiring at least 550 × 550 pixels.
 6. An owner's Hugging Face ZeroGPU Gradio Space, if configured and operational,
@@ -57,6 +63,16 @@ preview/job keeps its publication lock.
 * Once the Space actually builds and successfully generates, the separate
   periodic GPU preview workflow consumes queued staging jobs using that Space.
 * Both workflows safely skip while the required configuration is absent.
+  The GPU workflow also skips when Hugging Face has not created or finished
+  starting the Space. A missing Space is **not** a failed CI job.
+* The offline regression tests in `test_check_hf_space.py` simulate
+  HTTP 402 and 404, missing tokens, stopped builds, paid hardware and
+  genuine ZeroGPU readiness. The CI also checks that the runtime gate
+  runs **before** the claim step.
+* Once eligibility is satisfied, the same pipeline can resume without
+  changing the three queued product ideas or re-entering the token.
+  A RUNNING state alone is not a guarantee that model inference succeeds;
+  the first actual GPU run still needs visual and runtime validation.
 * Test Woo #29 with a verified **higher-resolution real photo**; do not
   upscale 220 × 220 into false photographic detail.
 
