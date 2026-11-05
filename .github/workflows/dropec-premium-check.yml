@@ -53,6 +53,26 @@ jobs:
           }
           console.log('Private premium queue and browser code parse successfully.')
           JS
+      - name: Assert availability gate runs before private queue claim
+        run: |
+          node <<'JS'
+          const fs = require('node:fs')
+          const flow = fs.readFileSync('.github/workflows/dropec-premium-gpu.yml','utf8')
+          const check = fs.readFileSync('creative-studio/premium/check_hf_space.py','utf8')
+          const preflight = flow.indexOf('name: Verify private Space RUNNING on free ZeroGPU')
+          const claim = flow.indexOf('name: Lease one exclusive premium preview')
+          if (preflight === -1 || claim === -1 || preflight >= claim) {
+            throw new Error('Free GPU verification must precede private queue claim')
+          }
+          const claimSection = flow.slice(claim,flow.indexOf('name: Install small CPU',claim))
+          if (!claimSection.includes("if: steps.preflight.outputs.ready == 'true'")) {
+            throw new Error('Queue claim is not conditioned on verified free GPU')
+          }
+          if (!check.includes('HTTPError') || !check.includes('ZERO_GPU = "zero-a10g"')) {
+            throw new Error('Space preflight missing HTTP-error or free-hardware protection')
+          }
+          console.log('No Space / HTTP 402 / paid GPU cannot consume a queued preview.')
+          JS
       - name: Type-check the staging-only Edge function
         uses: denoland/setup-deno@v2
         with:
