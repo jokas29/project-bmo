@@ -135,7 +135,6 @@ def _check_subject(cutout: Image.Image) -> Image.Image:
 
 def _fit_product(subject: Image.Image, variant: int):
     """Large center-right foreground without intersecting the left CTA."""
-    subject=_check_subject(subject) if subject.size[0]>=512 else subject
     max_width=660
     max_height=800
     scale=min(max_width/subject.width,max_height/subject.height)
@@ -206,7 +205,6 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     product,x,y=_fit_product(subject,variant)
 
     shadow=Image.new("RGBA",(W,H),(0,0,0,0))
-    shadow.alpha_composite(Image.new("RGBA",product.size,(25,35,8,0)),(x,y))
     shade=Image.new("L",product.size,0)
     shade.paste(product.getchannel("A"))
     shade=shade.filter(ImageFilter.GaussianBlur(27)).point(lambda v: int(v*.31))
@@ -221,10 +219,11 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     cta="SOLICITA TU COTIZACIÓN"
     button=[(70,918),(338,918),(370,942),(370,994),(338,1016),(70,1016)]
     dr.polygon(button,fill=LIME)
-    f=load_font(21)
-    tw=dr.textbbox((0,0),cta,font=f)[2]
-    if tw>285:raise ValueError("CTA exceeds configured button")
-    dr.text((80,956),cta,font=f,fill=PRIMARY)
+    for size in range(22,14,-1):
+        f=load_font(size)
+        if dr.textbbox((0,0),cta,font=f)[2] <= 278:break
+    else:raise ValueError("CTA exceeds configured button")
+    dr.text((82,955),cta,font=f,fill=PRIMARY)
 
     if price is not None:
         dr.text((72,1111),"PRECIO DE CATÁLOGO",font=load_font(22,False),fill=PRIMARY)
