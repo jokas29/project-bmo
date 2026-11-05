@@ -2,6 +2,10 @@ name: DropEC Creative Studio — Browser Code Checks
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'creative-studio/index.html'
+      - '.github/workflows/dropec-creative-ui-check.yml'
   push:
     branches: [main]
     paths:
@@ -34,5 +38,17 @@ jobs:
           }
           if (!html.includes('Sin publicación automática')) throw new Error('Missing publication lock notice');
           if (/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/.test(html)) throw new Error('Forbidden secret in public HTML');
-          console.log('Creative Studio JavaScript parses; all automation controls present; no server secrets exposed.');
+          const match = script[1].match(/function shouldPollCloudSlides\([\s\S]*?\n\}/);
+          if (!match) throw new Error('Premium carousel progress poller missing');
+          const shouldPoll = vm.runInNewContext('('+match[0]+')');
+          const queued = [{status:'pending',render_error:'premium_carousel_queued'}];
+          const rendering = [{status:'rendering',render_error:'premium_carousel_active'}];
+          if (!shouldPoll({status:'review'},queued)) throw new Error('Queued premium slide not polled in review');
+          if (!shouldPoll({status:'review'},rendering)) throw new Error('Rendering premium slide not polled in review');
+          if (!shouldPoll({status:'generating'},[])) throw new Error('Legacy renderer polling regressed');
+          if (shouldPoll({status:'approved'},queued)) throw new Error('Approved job must not be polled');
+          if (shouldPoll({status:'review'},[{status:'pending',render_error:null}])) throw new Error('Idle review polls unnecessarily');
+          if (!script[1].includes('shouldPollCloudSlides(job,slides))refreshCloud(true)')) throw new Error('Progress polling not wired');
+          for (const label of ['Premium: esperando turno en la cola','Premium: generando imagen','Carrusel Premium: cola aproximadamente cada 15 minutos']) if (!script[1].includes(label)) throw new Error('Missing human-readable Premium state: '+label);
+          console.log('Creative Studio JavaScript parses; Premium review polling and private controls verified.');
           NODE
