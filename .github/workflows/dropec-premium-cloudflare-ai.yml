@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '23 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dropec-premium-cloudflare-ai.yml'
+      - 'creative-studio/premium/check_cloudflare_ai.py'
 
 permissions:
   contents: read
