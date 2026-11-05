@@ -108,13 +108,19 @@ async function queue(req: Request) {
       body: JSON.stringify({ job_id: id, variant, status:"queued", prompt:prompt(job.product_name,variant) }) });
     queued++;
   }
-  return response({ ok:true, job_id:id, queued, existing:existing.length, publication_locked:true, gpu_required:true });
+  // The button is idempotent. Existing jobs are NOT new jobs and will NOT
+  // immediately run in the browser; the scheduled private worker leases them.
+  return response({ ok:true, job_id:id, queued, existing:existing.length,
+    total:queued+existing.length, process_interval_minutes:15,
+    message:queued===0?"already_queued":"new_proposals_queued",
+    publication_locked:true, gpu_required:true, publishing_enabled:false });
 }
 async function status(req: Request) {
   await requireOwner(req);
   const id=validatedJobId(new URL(req.url).searchParams.get("job_id"));
-  const rows=await admin("/rest/v1/dropec_premium_previews?select=id,variant,status,poster_path,reference_mode,render_error,render_attempts,created_at,updated_at&job_id=eq."+id+"&order=variant.asc");
-  return response({ok:true, previews:rows, publication_locked:true, publishing_enabled:false});
+  const rows=await admin("/rest/v1/dropec_premium_previews?select=id,variant,status,poster_path,reference_mode,render_error,render_after,render_started_at,render_attempts,created_at,updated_at&job_id=eq."+id+"&order=variant.asc");
+  return response({ok:true, previews:rows, process_interval_minutes:15,
+    publication_locked:true, publishing_enabled:false});
 }
 async function claim(req: Request) {
   await requireRunner(req);
