@@ -26,9 +26,9 @@ jobs:
         id: config
         shell: bash
         run: |
-          if [ -z "$DROPEC_HF_SPACE" ]; then
+          if [ -z "$DROPEC_HF_SPACE" ] || [ -z "$DROPEC_HF_TOKEN" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Premium previews not processed: DROPEC_HF_SPACE is not configured. Existing private slides remain unchanged."
+            echo "::notice::Premium previews not processed: Space variable or token not configured. Private queue remains untouched."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
@@ -39,8 +39,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Get short-lived OIDC identity for staging worker
+      - name: Verify private Space RUNNING on free ZeroGPU before queue claim
         if: steps.config.outputs.configured == 'true'
+        id: preflight
+        shell: bash
+        run: |
+          python3 creative-studio/premium/check_hf_space.py
+          if ! grep -q '^ready=true$' "$GITHUB_OUTPUT"; then
+            echo "::notice::Space ineligible, absent or unavailable: no preview jobs were claimed."
+            echo "### GPU preflight: SKIPPED" >> "$GITHUB_STEP_SUMMARY"
+            echo "No attempts consumed, no GPU charged, and existing private previews preserved." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Get short-lived OIDC identity for staging worker
+        if: steps.preflight.outputs.ready == 'true'
         id: auth
         shell: bash
         run: |
@@ -51,7 +63,7 @@ jobs:
           echo "token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Lease one exclusive premium preview
-        if: steps.config.outputs.configured == 'true'
+        if: steps.preflight.outputs.ready == 'true'
         id: claim
         shell: bash
         env:
