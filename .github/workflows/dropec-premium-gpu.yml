@@ -98,7 +98,7 @@ jobs:
         if: steps.claim.outputs.processed == 'true'
         run: |
           python3 -m pip install --disable-pip-version-check --no-input \
-            Pillow==11.3.0 requests==2.32.5 'gradio_client>=1.13,<2' 'rembg[cpu]==2.0.86'
+            Pillow==12.1.0 requests==2.32.5 'gradio_client>=1.13,<2' 'rembg[cpu]==2.0.86'
 
       - name: Generate external GPU scene and compose exact DropEC text
         if: steps.claim.outputs.processed == 'true'
