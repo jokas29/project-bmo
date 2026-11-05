@@ -1,6 +1,6 @@
 """DropEC Premium — 2:3 editorial typography with a real foreground product.
 
-Based on editorial_theme.json, not on iPhone/garlic-specific geometry. The
+Based on editorial_theme.json, never on a sample product's geometry. The
 generated object is isolated with free local rembg; it overlaps the background
 panel and decorative edition index. Product titles and catalog prices are
 typeset deterministically, never fabricated by an image model. Private only.
