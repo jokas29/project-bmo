@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from huggingface_hub import HfApi, SpaceHardware
+from huggingface_hub.utils import HfHubHTTPError
 
 SPACE = (os.environ.get("DROPEC_HF_SPACE") or "").strip()
 TOKEN = os.environ.get("DROPEC_HF_TOKEN") or ""
@@ -33,7 +34,7 @@ if existing:
     runtime = api.get_space_runtime(repo_id=SPACE)
     hardware = str(getattr(runtime, "hardware", "") or "").lower()
     requested = str(getattr(runtime, "requested_hardware", "") or "").lower()
-    if hardware not in ("zero-a10g", "none", "") and requested != "zero-a10g":
+    if hardware not in ("zero-a10g", "none", ""):
         raise SystemExit(f"Refusing to modify Space with non-ZeroGPU hardware: {hardware}")
     if requested and requested != "zero-a10g":
         raise SystemExit(f"Refusing to modify Space requesting non-ZeroGPU hardware: {requested}")
@@ -41,14 +42,23 @@ if existing:
 else:
     # Force ZeroGPU at creation. Omitting hardware would pick CPU Basic,
     # which may require a paid plan on HF for Gradio Spaces in 2026.
-    api.create_repo(
-        repo_id=SPACE,
-        repo_type="space",
-        space_sdk="gradio",
-        space_hardware=SpaceHardware.ZERO_A10G,
-        private=True,
-        exist_ok=False,
-    )
+    try:
+        api.create_repo(
+            repo_id=SPACE,
+            repo_type="space",
+            space_sdk="gradio",
+            space_hardware=SpaceHardware.ZERO_A10G,
+            private=True,
+            exist_ok=False,
+        )
+    except HfHubHTTPError as error:
+        # This is an account eligibility gate, not a script/deployment error.
+        # No CPU fallback, payment, upgrades or repeated create attempts.
+        if getattr(getattr(error, "response", None), "status_code", None) == 402:
+            print("::notice::Hugging Face free ZeroGPU eligibility not met yet (HTTP 402).")
+            print("Private DropEC previews stay queued. The scheduled workflow will check again tomorrow.")
+            raise SystemExit(0) from None
+        raise
     print("Created a private ZeroGPU Space (free shared GPU); no paid hardware requested.")
 
 folder=Path("creative-studio/premium/space")
