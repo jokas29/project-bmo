@@ -1,88 +1,87 @@
-# DropEC Premium — JSON-directed universal commercial poster (staging B)
+# DropEC Premium — Editorial 2:3 (staging B, 5 Nov 2026)
 
-## What changed
+## Art direction chosen
 
-User-approved reference design is encoded as editable, reusable
-`editorial_theme.json`, not a one-off prompt for the sample product.
-Every exported ad is **1080×1350 (4:5)** with:
+The owner rejected the generic green organic template and supplied an
+asymmetric luxury product-ad reference. `editorial_theme.json` now defines
+an **exact 736 × 1104, 2:3 private editorial preview** with:
 
-- white `#FFFFFF` canvas;
-- large, anti-aliased, curved organic olive `#29340A` shape in the upper left;
-- large organic lime `#ADE500` shape in the lower right;
-- exact verified product name in bold white sans serif within the olive region;
-- the actual rendered product as a transparent, large, center-right **foreground silhouette over the background shapes**, with a soft contact shadow;
-- a diagonal-corner lime CTA reading `SOLICITA TU COTIZACIÓN` on the left;
-- catalog price in dark olive at the bottom left **only when known**;
-- no bogus specifications, random benefit statements, made-up phone numbers,
-  addresses, warranties, logo copies or model-specific hardcoded colors.
-- without a verified image, `IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO`
-  remains visible.
+- a paper-white `#F5F3EF` seamless canvas;
+- a narrow `#AAA6A0` vertical architectural panel, **28% width and 92% height**;
+- `#111111` and `#000000` near-black type;
+- **open-source Lato Black/Heavy/Medium/Light**, in place of the former
+  generic DejaVu bold. Helvetica Neue is a proprietary typeface and is not
+  bundled or redistributed.
+- dynamically line-broken, large catalogue name at upper left;
+- exact catalog price when available and a restrained Spanish quote CTA;
+- a huge editorial proposal INDEX (`01`, `02`, `03`) behind the foreground
+  product. The index is not a product model or technical specification;
+- soft realistic shadow and single large foreground product overlapping
+  the gray panel and the index, never a rectangular original listing card.
 
-The auriculares/Portuguese sample JSON is a **layout specification only**:
-no headphones, fictitious contact information, unrelated logos or Portuguese
-copy are hardcoded for other products.
+This translates the **editorial composition** of the supplied smartphone
+reference, NOT its product details: no Apple logos, `18` model number,
+camera/chip/battery specifications, unsupported color variants, fabricated
+slogans, telephone numbers or addresses. Nor does DropEC automatically
+invent a second product view: only a real verified reference could justify
+a second view, so currently the poster keeps the actual single object.
 
-## New generation sequence (entirely in cloud)
+## Universal pipeline
 
-1. A locked private staging job is leased from Supabase B only after a FREE
-   Cloudflare Workers AI or Hugging Face ZeroGPU availability check.
-2. The original photo is used only as a conditional **visual reference**.
-   Catalog photos with embedded orange promotional typography are never
-   pasted into the final poster.
-3. `creative_brief.py` now requests a real full physical product alone on a
-   uniform neutral studio background, keeping all parts visible. Category
-   detection is generic and determines only the thematic context, not
-   fabricated product properties. With no photo, it requests a **conceptual**
-   SKU-unverified object.
-4. A small **open-source CPU** background-removal model, `rembg` with
-   `u2netp`, converts the rendered product into a transparent RGBA cutout.
-   No external paid background-removal service is used. The pretrained ONNX
-   model is downloaded from the rembg official release on its first use.
-5. The cutout undergoes safety gates: alpha coverage, minimum size, margin to
-   image edges, adequate bounds, and placement checks. Failed or ambiguous
-   segmentation causes a retryable failed preview; **not** a broken accepted
-   advertisement. Automatic fidelity or identity verification is **not**
-   claimed.
-6. Pillow assembles the original reference JSON design as a unified poster:
-   organic shapes, foreground shadow/product, catalog typography and CTA.
-   The reference image is not overlaid, and there is no separate rectangular
-   generated-photo section.
-7. The 1080×1350 JPEG is saved to **private Supabase B** via OIDC on the
-   GitHub runner. Manual owner review is required. No approval, payment,
-   customer contact, Meta action or publication is automated.
+1. The owner queues a locked private product in Creative Studio; jobs remain
+   idempotent and GitHub checks at roughly 15-minute intervals.
+2. Cloudflare Workers AI free FLUX.2 Klein (or separately configured free HF
+   Space) receives the original CDN image *only as a reference*, if available.
+   For no-photo products, the output is explicitly conceptual.
+3. The generative model creates the one product against a uniform gray
+   studio background, not an ad with invented lettering.
+4. Free `rembg[cpu]==2.0.86` + `u2netp` on ephemeral GitHub runners removes
+   the background. If extraction fails or a silhouette touches the edges, the
+   proposal fails safely rather than publishing a white rectangle.
+5. Pillow builds the designed poster using verified catalog text and price.
+   The reference promotional photograph is never pasted on top of the design.
+6. Preview is privately stored in Supabase B, retaining earlier versions
+   in `dropec_premium_preview_versions` for comparison and rollback.
+   Human fidelity/quality review is mandatory. **No social publishing.**
 
-Supported provider code: `cloudflare_runner.py` and optional
-`runner.py`. Both runners require `rembg[cpu]==2.0.86` locally on the
-ephemeral GitHub Actions runner, never on the Mac. Model downloads and
-matting may consume additional free GitHub Actions runtime; do not infer
-unlimited quotas.
+## Important aspect-ratio distinction
 
-## Safeguards and limits
+The user's newest reference specifies **2:3**, not the earlier 4:5
+1080×1350. This pipeline honors the 2:3 format for a private editorial
+preview. **It is not yet a validated Instagram or Facebook export.** Before
+enabling social uploads, create platform-specific safe variants without
+cropping the product, title, product price or CTA.
 
-- No change to old four-card/template renderer.
-- Versioned private Premium previews remain in
-  `dropec_premium_preview_versions`; regenerating archives the old JPEG.
-- Generated physical objects may still change shape, materials or parts
-  compared with real SKUs; **owner visual review must confirm fidelity**.
-- Color-key segmentation and local matting can fail on complex surfaces,
-  translucent objects or low-contrast images. The pipeline fails closed and
-  the user can regenerate the private proposal.
-- No image-less result can be called an authentic photograph of an exact
-  unavailable product; it is visibly marked illustrative.
-- Contact information is shown ONLY when verified DropEC data exists.
-  The sample JSON's Brazilian phone and street are NOT business facts.
-  Today the generator does not place a contact address or number.
-- Only private staging B is affected. Meta publishing and payments remain
-  unchanged and blocked. No plan upgrades or paid inference are authorized.
+## Layout, typography and honest content
 
-## Review and validation
+The compositor scales product silhouettes without cropping, and reserves
+separate no-overlap areas for title, price and CTA. Long names reduce type
+size rather than disappearing off-canvas. All three concept variants share
+the reference visual language but have subtle panel/product-position changes.
 
-`python -m unittest discover -s creative-studio/premium -p test_*.py`
-proves theme configuration, exact colors, shapes, RGBA overlap, product
-containment, category-agnostic behavior, conceptual warning, invalid prices
-and fail-closed segmentation. GitHub CI validates both runners' CPU matting
-dependencies and OIDC safety. This is **not** evidence that every FLUX
-generation will be aesthetically successful or true to the catalogue.
+A right-hand technical feature column and color swatches require
+**verified attributes from the product catalogue**, not deductions from a
+model-generated image. The current preview job only supplies name, price and
+optional reference photo, so these fields are deliberately absent. The
+architecture permits later data-mapped fields if the Woo source is expanded.
 
-The next validation should be a freshly generated private proposal in
-Creative Studio, compared visually with the actual source photograph.
+The UI is still a private experiment, not an approved product advertisement.
+Without a verified photograph, the design must show
+`IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO`. Human review must reject
+product detail hallucinations, distorted shadows and uncertain exact SKUs.
+
+## Validation
+
+- `test_compositor.py` verifies 2:3 dimensions, exact neutral colors,
+  correct panel geometry, real Lato font loading, title wrapping, large
+  foreground product bounding boxes, no cropped silhouette, truthfulness,
+  segmentation failures and unchanged source photograph.
+- `test_cloudflare_runner.py` and `test_creative_brief.py` verify free
+  inference and all with/without reference paths.
+- CI installs `fonts-lato` and `rembg[cpu]` and loads the free ONNX
+  segmentation model before any main-branch deployment.
+- Cloudflare staging and HF free GPU workflows install the same fonts,
+  preserve the OIDC staging security boundary and write private JPEG only.
+
+Changes remain in private staging; do not switch on pricing, publication or
+paid inference automatically.
