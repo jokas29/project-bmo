@@ -30,7 +30,7 @@ class CreativeBriefTests(unittest.TestCase):
                     self.assertIn("Product name",prompt)
                     self.assertNotIn("$",prompt)
 
-    def test_carousel_usage_tip_and_close_have_distinct_prompts(self):
+    def test_carousel_usage_benefits_and_close_have_distinct_prompts(self):
         product="Máquina de ajo eléctrica"
         self.assertEqual(category_for_name(product),"cocina")
         usage=carousel_scene_prompt(product,2,"catalog_reference")
@@ -40,7 +40,7 @@ class CreativeBriefTests(unittest.TestCase):
         self.assertIn("real adult",usage.lower())
         self.assertIn("natural hands",usage)
         self.assertNotIn("NO props, no floating ingredients, no hands",usage)
-        self.assertIn("USEFUL TIPS BACKDROP FOR SLIDE 3",tips)
+        self.assertIn("THREE PRODUCT BENEFITS PHOTO BACKDROP FOR SLIDE 3",tips)
         self.assertIn("still-life",tips)
         self.assertNotIn("LIFESTYLE PHOTO",tips)
         self.assertIn("ENTIRE PHYSICAL PRODUCT",close)
