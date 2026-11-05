@@ -1,6 +1,6 @@
 import unittest
 from PIL import Image
-from creative_brief import category_for_name,classify_reference,scene_prompt
+from creative_brief import category_for_name,classify_reference,scene_prompt,carousel_scene_prompt
 
 class CreativeBriefTests(unittest.TestCase):
     def test_categories_are_general_and_multilingual(self):
@@ -29,6 +29,34 @@ class CreativeBriefTests(unittest.TestCase):
                     self.assertLessEqual(len(prompt),2000)
                     self.assertIn("Product name",prompt)
                     self.assertNotIn("$",prompt)
+
+    def test_carousel_usage_tip_and_close_have_distinct_prompts(self):
+        product="Máquina de ajo eléctrica"
+        self.assertEqual(category_for_name(product),"cocina")
+        usage=carousel_scene_prompt(product,2,"catalog_reference")
+        tips=carousel_scene_prompt(product,3,"catalog_reference")
+        close=carousel_scene_prompt(product,4,"catalog_reference")
+        self.assertIn("LIFESTYLE PHOTO FOR SLIDE 2",usage)
+        self.assertIn("real adult",usage.lower())
+        self.assertIn("natural hands",usage)
+        self.assertNotIn("NO props, no floating ingredients, no hands",usage)
+        self.assertIn("USEFUL TIPS BACKDROP FOR SLIDE 3",tips)
+        self.assertIn("still-life",tips)
+        self.assertNotIn("LIFESTYLE PHOTO",tips)
+        self.assertIn("ENTIRE PHYSICAL PRODUCT",close)
+        self.assertIn("no humans",close)
+        for value in (usage,tips,close):
+            self.assertLessEqual(len(value),2000)
+            self.assertIn("no text",value.lower())
+            self.assertNotIn("$25",value)
+
+    def test_context_prompt_remains_conceptual_without_reference(self):
+        for number in (2,3,4):
+            value=carousel_scene_prompt("Producto genérico",number,"conceptual")
+            self.assertIn("CONCEPTUAL",value)
+        for number in (0,1,5):
+            with self.assertRaises(ValueError):
+                carousel_scene_prompt("Producto",number,"conceptual")
 
     def test_no_reference_is_clearly_conceptual(self):
         prompt=scene_prompt("Producto desconocido",1,"conceptual")
