@@ -170,6 +170,20 @@ jobs:
           if (/sb_secret_|SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'](?!["'])/.test(html)) {
             throw new Error('Secret exposed in public HTML')
           }
+          if (!brief.includes('LIFESTYLE PHOTO FOR SLIDE 2') ||
+              !brief.includes('USEFUL TIPS BACKDROP FOR SLIDE 3') ||
+              !cloud.includes('carousel_scene_prompt(') ||
+              !compositor.includes('def _contextual_photo(') ||
+              !compositor.includes('def _tip_cards(') ||
+              !compositor.includes('ESCRÍBENOS POR MENSAJE')) {
+            throw new Error('Narrative carousel must have person usage, contextual tips and contact close')
+          }
+          if (!edge.includes('refresh_interiors') ||
+              !edge.includes('slide_headline:') ||
+              !edge.includes('slide_tips:') ||
+              !html.includes('Recrear interiores 2–4 (conservar portada)')) {
+            throw new Error('Owner-only interior re-render or grounded copy pipeline missing')
+          }
           console.log('Private premium queue and browser code parse successfully.')
           JS
       - name: Assert availability gate runs before private queue claim
