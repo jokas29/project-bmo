@@ -4,6 +4,48 @@
 :root{color-scheme:dark;--bg:#101119;--panel:#1b1d2a;--panel2:#242536;--line:#383a4e;--fg:#f5f2ff;--muted:#aaabbd;--lime:#c8ff56;--purple:#9b72ff;--danger:#ff7686}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0%,#30214a 0%,transparent 36%),var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}h1,h2,h3,p{margin:0 0 10px}h1{font-size:27px;letter-spacing:-.7px}h2{font-size:22px;letter-spacing:-.6px}h3{font-size:17px}small,.muted{color:var(--muted)}a{color:var(--lime)}.wrap{max-width:1240px;margin:auto;padding:22px}.row{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.stack{display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:19px;padding:22px}.hero{background:linear-gradient(115deg,#2e1c50,#171925 67%);border:1px solid #51406e;border-radius:22px;padding:24px}.brand{font-weight:900;letter-spacing:-.7px;font-size:23px}.brand span{color:var(--lime)}.tag{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--muted);font-size:12px}.ok{color:var(--lime)}.danger{color:var(--danger)}input,select,textarea{background:#11121c;color:var(--fg);border:1px solid #48495a;border-radius:11px;padding:12px;width:100%;font:inherit;outline-color:var(--purple)}button{font:inherit;cursor:pointer;border:1px solid #545167;border-radius:11px;background:#302a45;color:white;padding:10px 15px;font-weight:650}button:hover{border-color:var(--purple);background:#3d315d}button:disabled{opacity:.4;cursor:not-allowed}.primary{background:var(--lime);color:#151821;border-color:var(--lime)}.primary:hover{background:#dcff9c}.soft{background:#211c33}.error{color:var(--danger)}.notice{padding:12px 15px;border:1px solid #504566;border-radius:12px;background:#29223b}.bridge{background:linear-gradient(135deg,#241c38,#1b1d2a);border:1px solid #5b477b;border-radius:18px;padding:20px;display:grid;gap:12px}.bridge small{line-height:1.6}.bridge .row{justify-content:flex-start}.bridge a{word-break:break-word}.bridge button{min-height:43px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}.stat strong{display:block;font-size:29px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:17px}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}.card:hover{border-color:var(--purple)}.card-media{height:204px;display:flex;align-items:center;justify-content:center;background:#f2f0ea;overflow:hidden}.card-media img{width:100%;height:100%;object-fit:contain}.missing-image{color:#353244;background:#f2f0ea;text-align:center;padding:22px;line-height:1.45;font-size:14px;font-weight:650}.card-body{padding:17px;display:grid;gap:9px}.card-body h3{min-height:50px}.slides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.slide{background:var(--panel2);border:1px solid var(--line);padding:14px;border-radius:15px;min-width:0}.slide-preview{aspect-ratio:4/5;background:#11121c;border:1px solid #464455;display:flex;align-items:center;justify-content:center;border-radius:10px;overflow:hidden;margin:12px 0}.slide-preview img{width:100%;height:100%;object-fit:contain}.slide input[type=file]{font-size:12px;padding:7px}.slide button{margin:4px 3px 0 0;font-size:12px;padding:8px}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px}.auth{max-width:420px;margin:8vh auto}.tabs{display:flex;gap:8px;flex-wrap:wrap}.hide{display:none!important}#msg{min-height:22px;margin:12px 0}hr{border:0;border-top:1px solid var(--line);margin:20px 0}pre{white-space:pre-wrap;word-wrap:break-word;color:var(--muted);font-size:12px}
 @media(max-width:850px){.slides{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}}@media(max-width:480px){.slides{grid-template-columns:1fr}.wrap{padding:13px}h1{font-size:24px}.panel{padding:15px}.row{align-items:stretch}.row button{flex:1}}
+
+/* DropEC Publishing Board: presentation-only simplification.
+   Legacy controls remain mounted but inaccessible; private history stays intact. */
+#workspace{max-width:1350px}
+#workspace>header{border-bottom:1px solid #363149;padding-bottom:17px}
+#workspace>header small{font-size:13px}
+#help,#workspace>header .tag,
+#dashboard>.panel.row,#stats,#cloudproof,#filter,
+#detail>.split,#cloudautomate,#premiumlab,
+#detail>.bridge,#detail>.panel.stack:not(#socialcopy),
+#detail>.row:last-child,#slides input[type=file],
+#slides button,#slides .slide p.muted,#slides .slide>small:nth-of-type(2){display:none!important}
+#dashboard .hero{background:linear-gradient(115deg,#2d174a 0%,#171822 80%);padding:30px 32px}
+#dashboard .hero h1{font-size:clamp(26px,3vw,37px)}
+#dashboard .hero p{max-width:780px}
+#dashboard .cards{grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px}
+#dashboard .card{border-radius:19px}
+#dashboard .card-body h3{min-height:auto}
+#dashboard .card-media{height:260px;background:radial-gradient(circle at center,#49316a 0%,#1e152e 73%)}
+#dashboard .card-media img{object-fit:contain}
+#dashboard #search{max-width:330px}
+#detail{display:flex;flex-direction:column;gap:20px}
+#detail>.row:first-child{order:0}
+#producthero{order:1}
+#detail>h2{order:2;margin:7px 0 0;font-size:23px}
+#detail>#slides{order:3;grid-template-columns:repeat(4,minmax(0,1fr))}
+#detail>#socialcopy{order:4;margin-top:12px}
+#detail>.row:last-child{order:9}
+#slides .slide{padding:11px;background:#262537}
+#slides .slide h3{font-size:15px;margin:4px 2px 0}
+#slides .slide-preview{aspect-ratio:2/3;margin:10px 0 0}
+#slides .slide-preview img{object-fit:contain}
+#slides .slide>small{display:block;margin:4px 2px;color:var(--muted);font-size:12px}
+#socialcopy textarea{font-size:15px;line-height:1.65;max-height:450px}
+#posthashtags{display:flex;gap:8px;flex-wrap:wrap}
+#posthashtags span{padding:6px 10px;background:#34254f;border-radius:100px;color:#d6ff77;font-size:13px}
+#publicationnote{padding:9px 0;color:var(--muted);font-size:13px}
+#producthero{border:1px solid var(--line);background:linear-gradient(115deg,#271a40,#1d1d2a);padding:22px 24px;border-radius:18px}
+#producthero h1{font-size:clamp(23px,2.8vw,31px);margin-bottom:6px}
+#producthero p{color:var(--muted);margin:0}
+@media(max-width:980px){#detail>#slides{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:570px){#detail>#slides{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#slides .slide{padding:8px}#slides .slide h3{font-size:13px}#dashboard .hero{padding:19px}#producthero{padding:18px}#socialcopy{padding:14px}}
 </style></head><body>
 <div id="authbox" class="wrap auth">
  <div class="panel stack"><div class="brand">Drop<span>EC</span> <span style="color:#fff;font-weight:500;font-size:14px">Creative Studio</span></div><h2>Acceso privado</h2><p class="muted">Estudio creativo de DropEC. Solo el propietario autorizado puede acceder.</p>
@@ -13,10 +55,10 @@
  <small>Este acceso es independiente de WordPress y del inicio de sesión de ChatGPT. No compartas tu contraseña.</small></div>
 </div>
 <div id="workspace" class="wrap hide">
- <header class="row" style="margin-bottom:21px"><div><div class="brand">Drop<span>EC</span> Creative Studio</div><small>Estudio de carruseles · Entorno privado de pruebas</small></div><div class="row"><span class="tag">Sin publicación automática</span><button id="help">Cómo usar</button><button id="logout">Cerrar sesión</button></div></header>
+ <header class="row" style="margin-bottom:21px"><div><div class="brand">Drop<span>EC</span> Creative Studio</div><small>Publicaciones preparadas automáticamente · Área privada</small></div><div class="row"><span class="tag">Automatización creativa</span><button id="help">Cómo usar</button><button id="logout">Cerrar sesión</button></div></header>
  <div id="msg" role="status"></div>
- <section id="dashboard" class="stack"><div class="hero"><h1>Tu próxima publicación empieza aquí.</h1><p class="muted">Elige un producto y genera su carrusel de cuatro diapositivas automáticamente en la nube. ChatGPT queda disponible para diseños personalizados. Todo se guarda como borrador privado.</p></div>
- <div class="panel row" style="margin-bottom:15px"><label style="display:flex;gap:10px;align-items:center"><input id="autoqueue" type="checkbox" style="width:20px;height:20px">Generar automáticamente los productos pendientes (máximo 3 por día)</label><small id="autoconfigstatus">Cargando configuración…</small></div><div id="stats" class="stats"></div><div class="row"><h2>Cola de productos</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="generating">Generando</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
+ <section id="dashboard" class="stack"><div class="hero"><h1>Contenido de DropEC</h1><p class="muted">Aquí aparecen los productos seleccionados para publicar: sus carruseles Premium, descripción y hashtags. La creación de imágenes puede continuar en la nube sin abrir esta página.</p></div>
+ <div class="panel row" style="margin-bottom:15px"><label style="display:flex;gap:10px;align-items:center"><input id="autoqueue" type="checkbox" style="width:20px;height:20px">Generar automáticamente los productos pendientes (máximo 3 por día)</label><small id="autoconfigstatus">Cargando configuración…</small></div><div id="stats" class="stats"></div><div class="row"><h2>Productos para publicar</h2><div class="row" style="flex:1;justify-content:flex-end;min-width:230px"><input id="search" placeholder="Buscar por producto o ID" style="max-width:310px"><select id="filter" style="max-width:190px"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="generating">Generando</option><option value="review">En revisión</option><option value="approved">Aprobados</option><option value="ready_to_publish">Preparados</option></select></div></div><div id="cards" class="cards"></div>
  <div class="panel stack" style="margin-top:20px" id="cloudproof">
   <div class="row"><h3 style="margin:0">Prueba de transferencia directa en la nube</h3><span class="tag">Archivo privado · No publicar</span></div>
   <p class="muted">Una imagen técnica generada con ChatGPT se transfirió a Google Drive y a una tabla privada de Supabase, sin utilizar tu computadora. No es un carrusel ni una publicación.</p>
@@ -24,12 +66,13 @@
   <div id="cloudproofoutput" role="status" class="stack"></div>
  </div>
  </section>
- <section id="detail" class="stack hide"><div class="row"><button id="back">← Volver</button><span id="detailstatus" class="tag"></span></div><div class="split"><div class="panel"><h2 id="jobtitle"></h2><p id="jobprice" class="muted"></p><img id="original" style="height:220px;max-width:100%;object-fit:contain;background:white;border-radius:12px;padding:12px" alt="Fotografía original del producto"><p id="originalmissing" class="notice hide">La imagen antigua de Dropi no carga. Sube aquí una fotografía auténtica descargada del producto en WooCommerce o Dropi.</p><p id="jobnotes" class="muted"></p><hr><label style="display:grid;gap:8px">Fotografía ORIGINAL del producto (PNG, JPG o WEBP; máximo 15 MB)<input id="sourcefile" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="downloadsource" disabled>Descargar imagen original para ChatGPT</button><small>La fotografía se guarda en un espacio privado. Este paso es distinto de subir diapositivas diseñadas.</small></div><div class="panel"><h2>Enviar trabajo a ChatGPT</h2><p class="muted">Preparamos la ficha completa del producto y las cuatro diapositivas. Un clic abre ChatGPT con el encargo prellenado cuando ese enlace funciona en tu sesión. También copiamos el texto como respaldo.</p><div class="stack"><button id="sendchat" class="primary">Preparar y abrir carrusel en ChatGPT</button><button id="copyficha">Copiar ficha completa</button><button id="copyprompt">Copiar solo portada</button></div><p class="muted" style="margin-top:15px">Referencia fotográfica opcional. Si hay una imagen real verificable, úsala; si no existe, ChatGPT podrá crear una composición conceptual.</p><small>La web no puede controlar un chat normal ni descargar automáticamente sus resultados mediante una conexión gratuita oficial.</small></div></div>
+ <section id="detail" class="stack hide"><div class="row"><button id="back">← Productos</button><span id="detailstatus" class="tag"></span></div>
+ <div id="producthero"><h1 id="publicproductname">Producto</h1><p id="publicproductprice">Carrusel Premium · 4 diapositivas</p></div><div class="split"><div class="panel"><h2 id="jobtitle"></h2><p id="jobprice" class="muted"></p><img id="original" style="height:220px;max-width:100%;object-fit:contain;background:white;border-radius:12px;padding:12px" alt="Fotografía original del producto"><p id="originalmissing" class="notice hide">La imagen antigua de Dropi no carga. Sube aquí una fotografía auténtica descargada del producto en WooCommerce o Dropi.</p><p id="jobnotes" class="muted"></p><hr><label style="display:grid;gap:8px">Fotografía ORIGINAL del producto (PNG, JPG o WEBP; máximo 15 MB)<input id="sourcefile" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="downloadsource" disabled>Descargar imagen original para ChatGPT</button><small>La fotografía se guarda en un espacio privado. Este paso es distinto de subir diapositivas diseñadas.</small></div><div class="panel"><h2>Enviar trabajo a ChatGPT</h2><p class="muted">Preparamos la ficha completa del producto y las cuatro diapositivas. Un clic abre ChatGPT con el encargo prellenado cuando ese enlace funciona en tu sesión. También copiamos el texto como respaldo.</p><div class="stack"><button id="sendchat" class="primary">Preparar y abrir carrusel en ChatGPT</button><button id="copyficha">Copiar ficha completa</button><button id="copyprompt">Copiar solo portada</button></div><p class="muted" style="margin-top:15px">Referencia fotográfica opcional. Si hay una imagen real verificable, úsala; si no existe, ChatGPT podrá crear una composición conceptual.</p><small>La web no puede controlar un chat normal ni descargar automáticamente sus resultados mediante una conexión gratuita oficial.</small></div></div>
  <div class="panel stack" id="socialcopy">
-  <div class="row"><h2 style="margin:0">Texto del post y hashtags</h2><span class="tag">Borrador privado</span></div>
-  <p class="muted">Se redacta automáticamente con datos conocidos del producto, sin inventar testimonios ni condiciones de envío. Revisa el precio y el texto antes de usarlo.</p>
-  <textarea id="captiondraft" rows="7" maxlength="2400" placeholder="El texto aparecerá cuando el generador procese el producto. Puedes editarlo y guardarlo."></textarea>
-  <div class="row" style="justify-content:flex-start"><button id="savecaption">Guardar texto</button><button id="copycaption" class="primary">Copiar texto</button></div>
+  <div class="row"><h2 style="margin:0">Descripción de la publicación</h2><span class="tag">Texto editable</span></div>
+  <p class="muted">Texto y hashtags asociados al producto. Sin promesas de envío, disponibilidad ni descuentos no comprobados.</p>
+  <textarea id="captiondraft" rows="7" maxlength="2400" placeholder="Descripción y hashtags que acompañarán al carrusel."></textarea><div id="posthashtags" aria-label="Hashtags de la publicación"></div>
+  <div class="row" style="justify-content:flex-start"><button id="savecaption">Guardar descripción</button><button id="copycaption" class="primary">Copiar publicación</button></div><div id="publicationnote">Generación automática privada. Sin publicación automática en redes por ahora: existe infraestructura histórica de Instagram, pero su activación comercial está bloqueada hasta validar los requisitos. Creative Studio no publica ni afirma que algo ya esté publicado.</div>
  </div>
  <div class="bridge" id="cloudautomate">
   <div class="row"><h2 style="margin:0">Generación automática en la nube</h2><span class="tag ok">Gratis · Sin Mac · Sin publicar</span></div>
@@ -171,9 +214,16 @@ function renderJobs(){
  const st=$("stats");st.replaceChildren();
  [["Pendientes",jobs.filter(x=>x.status==="pending"||x.status==="prepared").length],["En proceso",jobs.filter(x=>x.status==="generating").length],["Revisión",jobs.filter(x=>x.status==="review"||x.status==="awaiting_images").length],["Aprobados",jobs.filter(x=>x.status==="approved").length],["Preparados",jobs.filter(x=>x.status==="ready_to_publish").length]].forEach(k=>{const d=text("div",null,"stat");d.append(text("small",k[0]),text("strong",k[1]));st.append(d)});
  const q=$("search").value.toLowerCase(),f=$("filter").value,c=$("cards");c.replaceChildren();
- const found=jobs.filter(x=>(!f||x.status===f)&&((x.product_name||"").toLowerCase().includes(q)||String(x.woo_product_id).includes(q)||String(x.dropi_product_id).includes(q)));
+ const found=jobs.filter(x=>x.status!=="archived"&&Array.isArray(x.target_platforms)&&x.target_platforms.some(p=>["instagram","facebook"].includes(p))&&(!f||x.status===f)&&((x.product_name||"").toLowerCase().includes(q)||String(x.woo_product_id).includes(q)||String(x.dropi_product_id).includes(q)));
  if(!found.length){c.append(text("p","No hay productos con estos filtros.","muted"));return}
  found.forEach(x=>{const d=text("article",null,"card"),m=text("div",null,"card-media"),body=text("div",null,"card-body");m.append(photo(x.source_image_url));body.append(text("span","Woo #"+x.woo_product_id+" · "+status(x.status),"muted"),text("h3",x.product_name),text("strong",money(x.product_price)),button("Abrir estudio creativo",()=>openJob(x.id),"primary"));d.append(m,body);c.append(d)})
+}
+function renderPostTags(){
+ const container=$("posthashtags");container.replaceChildren();
+ if(!job)return;
+ const tags=Array.from(new Set((($("captiondraft").value.match(/#[\p{L}\p{N}_]+/gu)||[]).concat(Array.isArray(job.hashtags)?job.hashtags:[]))
+   .filter(x=>/^#[\p{L}\p{N}_]+$/u.test(x)))).slice(0,20);
+ for(const hashtag of tags)container.append(text("span",hashtag));
 }
 function ficha(j){return ["PRODUCTO REAL: "+j.product_name,"Woo: "+j.woo_product_id+" | Dropi: "+j.dropi_product_id,"Precio en catálogo: "+money(j.product_price)+" (verificar vigencia)","Fotografía original: "+(j.source_image_url&&j.source_image_url.startsWith("storage://")?"Almacenada de forma privada en DropEC Creative Studio. Descárgala y adjúntala al chat.": "Adjunta el archivo original descargado de WooCommerce o Dropi; no uses enlaces antiguos sin verificar."),"Notas: "+(j.product_notes||"Sin notas"),"CTA: Solicita tu cotización. Envío por confirmar. No prometer pago contraentrega."].join("\n")}
 function fullCarouselPrompt(j){
@@ -238,7 +288,10 @@ async function saveProductBenefits(){
  finally{save.disabled=false}
 }
 async function openJob(id){
- job=jobs.find(x=>x.id===id);if(!job)return;show("detail");fillBenefits();$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";$("captiondraft").value=job.caption_draft||"";
+ job=jobs.find(x=>x.id===id);if(!job)return;show("detail");fillBenefits();
+ $("publicproductname").textContent=job.product_name;
+ $("publicproductprice").textContent=money(job.product_price)+" · 4 diapositivas Premium";
+$("jobtitle").textContent=job.product_name;$("jobprice").textContent=money(job.product_price)+" · Woo #"+job.woo_product_id;$("detailstatus").textContent=status(job.status);$("jobnotes").textContent=job.product_notes||"";$("captiondraft").value=job.caption_draft||"";renderPostTags();
  const image=$("original"),missing=$("originalmissing"),dl=$("downloadsource");
  image.removeAttribute("src");missing.classList.add("hide");dl.disabled=true;
  image.onerror=()=>{image.classList.add("hide");missing.classList.remove("hide");dl.disabled=true};
@@ -336,8 +389,9 @@ async function saveCaption(){
  const draft=$("captiondraft").value.trim();
  if(!draft){msg("El texto no puede estar vacío.",true);return}
  try{
-  await api("/rest/v1/dropec_creative_jobs?id=eq."+encodeURIComponent(job.id),"PATCH",{caption_draft:draft,caption_reviewed:false,updated_at:new Date().toISOString()});
-  job.caption_draft=draft;msg("Texto del post guardado de forma privada. No se publicará.");
+  await api("/rest/v1/dropec_creative_jobs?id=eq."+encodeURIComponent(job.id),"PATCH",{caption_draft:draft,hashtags:Array.from(new Set(draft.match(/#[\p{L}\p{N}_]+/gu)||[])).slice(0,20),caption_reviewed:false,updated_at:new Date().toISOString()});
+  job.caption_draft=draft;job.hashtags=Array.from(new Set(draft.match(/#[\p{L}\p{N}_]+/gu)||[])).slice(0,20);renderPostTags();
+  msg("Descripción y hashtags guardados en privado.");
  }catch(e){msg("No pude guardar el texto: "+e.message,true)}
 }
 function showGenerationState(){
@@ -530,8 +584,8 @@ async function signed(path,download=false){
 }
 async function renderSlides(){
  const holder=$("slides");holder.replaceChildren();const names=["Portada","En uso","3 beneficios","Precio y contacto"];
- for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Para revisión":s.status==="rendering"?"Generando en la nube":s.status==="error"?"Error de generación":"Pendiente"):"Sin imagen"));
- const media=text("div",null,"slide-preview");if(s&&s.image_path){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
+ for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Imagen lista":s.status==="rendering"?"Generando en la nube":s.status==="error"?"Error de generación":"Pendiente"):"Sin imagen"));
+ const media=text("div",null,"slide-preview");if(s&&s.image_path){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>{img.src=url;img.tabIndex=0;img.title="Abrir imagen";img.style.cursor="zoom-in";img.onclick=async()=>window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
  if(s?.status==="pending"&&s.image_path)d.append(text("small","Versión anterior visible mientras se prepara la nueva; aún no es la diapositiva definitiva.","muted"));
  d.append(button("Copiar prompt",()=>copy(prompt(job,i))));
  const file=document.createElement("input");file.type="file";file.accept="image/png,image/jpeg,image/webp";file.setAttribute("aria-label","Subir imagen "+i);file.onchange=async()=>{if(file.files&&file.files[0])await upload(i,file.files[0])};d.append(file);
@@ -561,6 +615,7 @@ async function updateSlide(s,next){try{await api("/rest/v1/dropec_creative_slide
 async function rejectSlide(s){const why=promptUser("¿Qué debemos corregir en esta diapositiva?");if(why===null)return;try{await api("/rest/v1/dropec_creative_slides?id=eq."+s.id,"PATCH",{status:"rejected",review_notes:why});msg("Diapositiva marcada para corregir.");await loadSlides()}catch(e){msg(e.message,true)}}
 function promptUser(s){return window.prompt(s)}
 async function updateJob(next){try{await api("/rest/v1/dropec_creative_jobs?id=eq."+job.id,"PATCH",{status:next,publication_locked:true,updated_at:new Date().toISOString()});job.status=next;$("detailstatus").textContent=status(next);msg("Estado guardado. Publicación externa permanece bloqueada.");await loadSlides()}catch(e){msg(e.message,true)}}
+$("captiondraft").addEventListener("input",renderPostTags);
 $("login").onclick=login;$("register").onclick=signup;$("recover").onclick=recover;$("logout").onclick=()=>{store(null);enter()};$("back").onclick=()=>{show("dashboard");loadJobs()};$("guideback").onclick=()=>{show("dashboard");loadJobs()};$("help").onclick=()=>show("guide");
 $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filter").onchange=renderJobs;$("cloudproofbutton").onclick=showCloudProof;
 $("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);$("rebuildcloud").onclick=rebuildCloud;$("historybutton").onclick=showHistory;

@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'creative-studio/premium/**'
+      - 'creative-studio/ingest/**'
       - 'creative-studio/index.html'
       - 'creative-studio/cloud-render/index.ts'
       - '.github/workflows/dropec-premium-gpu.yml'
@@ -222,3 +223,4 @@ jobs:
           deno-version: v2.x
       - run: deno check creative-studio/premium/edge/index.ts
       - run: deno check creative-studio/cloud-render/index.ts
+      - run: deno check creative-studio/ingest/catalog-source.ts

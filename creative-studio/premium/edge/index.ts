@@ -320,6 +320,170 @@ async function saveBenefits(req: Request) {
 }
 
 
+// Only the same authenticated runner may import verified auto-managed Woo
+// products from the dedicated read-only production catalog bridge. No public
+// product or sales endpoint is exposed, and no Meta post is sent.
+async function ingestSelectedProducts(req:Request) {
+  await requireRunner(req);
+  if(Number(req.headers.get("content-length")||0)>40000)
+    return response({ok:false,error:"Catalog payload too large"},413);
+  const raw=await req.text();
+  if(raw.length>40000)return response({ok:false,error:"Catalog payload too large"},413);
+  const input=JSON.parse(raw||"{}") as Json;
+  if(input.source!=="approved_woo_auto_catalog"||!Array.isArray(input.products)||
+     input.products.length>20)return response({ok:false,error:"Untrusted catalog feed"},422);
+  const cfg=await admin("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
+  if(!cfg?.[0]?.enabled)return response({ok:true,action:"paused",publishing_enabled:false});
+  const daily=Math.max(1,Math.min(12,Number(cfg[0].max_jobs_per_day||3)));
+  const today=new Date().toISOString().slice(0,10)+"T00:00:00Z";
+  const count=await admin("/rest/v1/dropec_creative_jobs?select=id&created_at=gte."+encodeURIComponent(today)+"&limit=100");
+  if(count.length>=daily)return response({ok:true,action:"daily_limit",max:daily,publishing_enabled:false});
+  const busy=await admin("/rest/v1/dropec_creative_slides?select=id&status=in.(pending,rendering)&render_error=in.(premium_carousel_queued,premium_carousel_active)&limit=10");
+  if(busy.length>=6)return response({ok:true,action:"backlog_limit",publishing_enabled:false});
+  for(const item of input.products){
+    if(!item||typeof item!=="object"||Array.isArray(item))continue;
+    const woo=Number(item.woo_product_id),dropi=Number(item.dropi_product_id),price=Number(item.product_price);
+    const name=clean(item.product_name,120);
+    const photo=allowedProductImage(item.source_image_url);
+    const benefits=validatedBenefits(item.benefits,item.benefits_source);
+    if(!Number.isSafeInteger(woo)||woo<=0||!Number.isSafeInteger(dropi)||dropi<=0||
+       !Number.isFinite(price)||price<12||price>60||name.length<7||
+       !photo||!benefits)continue;
+    const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("dropec-premium-woo-v1:"+woo)));
+    digest[6]=(digest[6]&15)|80;digest[8]=(digest[8]&63)|128;
+    const h=Array.from(digest.slice(0,16),b=>b.toString(16).padStart(2,"0")).join("");
+    const id=h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20,32);
+    const existing=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&woo_product_id=eq."+woo+"&limit=1");
+    if(existing.length){
+      // A prior worker may have inserted the job but crashed before creating
+      // the four placeholders; repair only our deterministic, untouched draft.
+      const previous=existing[0];
+      if(previous.id===id && previous.status==="pending" && previous.publication_locked===true){
+        const s=await admin("/rest/v1/dropec_creative_slides?select=slide_number,status,image_path&job_id=eq."+id);
+        if(s.length<4 && s.every((x:any)=>x.status==="pending"&&!x.image_path)){
+          const missing=[1,2,3,4].filter(n=>!s.some((x:any)=>Number(x.slide_number)===n));
+          if(missing.length){
+            await admin("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number",{
+              method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+              body:JSON.stringify(missing.map(n=>({job_id:id,slide_number:n,
+                role:["portada","problema","beneficios","cierre"][n-1],status:"pending",image_path:null}))),
+            });
+            return response({ok:true,action:"recovered_missing_slides",job_id:id,publication_locked:true,publishing_enabled:false});
+          }
+        }
+      }
+      continue;
+    }
+    const hashtags=["#DropEC","#Ecuador"];
+    const caption=name+"\\n\\nPrecio de catálogo $"+price.toFixed(2)+
+      " (sujeto a confirmación).\\nConsulta stock y costo de envío para tu ciudad antes de pagar."+
+      "\\nEscríbenos por mensaje para una cotización.\\n\\n"+hashtags.join(" ");
+    const data={
+      id,woo_product_id:woo,dropi_product_id:dropi,product_name:name,product_price:price,
+      source_image_url:photo,product_notes:"Ficha comercial previamente aprobada en WooCommerce. Beneficios declarados por proveedor; validar antes de publicar.",
+      concept:"producto_destacado",design_brief:"DropEC Premium violeta/Anton, producto exacto centrado, cuatro imágenes privadas de 2:3.",
+      prompt_bundle:{version:"dropec_auto_premium_v1",output_px:"736x1104",aspect_ratio:"2:3",
+        visual_system:{name:"DropEC editorial premium",theme:"Fondo morado, tipografía Anton, lima, producto protagonista"},
+        slides:[
+          {slide:1,role:"portada",headline:name},
+          {slide:2,role:"problema",headline:"¿CONOCES ESTE PRODUCTO?"},
+          {slide:3,role:"beneficios",headline:"3 BENEFICIOS DEL PRODUCTO",benefits,benefits_source:"supplier_listing"},
+          {slide:4,role:"cierre",headline:name+" · $"+price.toFixed(2)}
+        ],cta:"Solicita tu cotización",shipping_note:"Envío por confirmar antes de pagar"},
+      target_platforms:["instagram","facebook"],status:"pending",publication_locked:true,
+      caption_draft:caption,hashtags,caption_reviewed:false,
+    };
+    const insert=await admin("/rest/v1/dropec_creative_jobs?on_conflict=id",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
+      body:JSON.stringify(data),
+    });
+    if(!Array.isArray(insert)||!insert.length)continue;
+    await admin("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify([1,2,3,4].map(n=>({job_id:id,slide_number:n,
+        role:["portada","problema","beneficios","cierre"][n-1],
+        status:"pending",image_path:null,review_notes:null}))),
+    });
+    return response({ok:true,action:"product_imported",woo_product_id:woo,job_id:id,
+      publication_locked:true,publishing_enabled:false});
+  }
+  return response({ok:true,action:"no_new_valid_product",publishing_enabled:false});
+}
+
+// OIDC-only autopilot. No browser visit, manual cover approval or social publisher.
+// It only picks new, already selected, private jobs with a verified catalogue
+// reference and three sourced, distinct product benefits.
+async function autoPrepareCarousel(req: Request) {
+  await requireRunner(req);
+  const settings=await admin("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
+  if(!settings?.[0]?.enabled)return response({ok:true,action:"paused",publication_locked:true,publishing_enabled:false});
+  const limit=Math.min(12,Math.max(1,Number(settings[0].max_jobs_per_day||3)));
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,product_name,product_price,source_image_url,prompt_bundle,target_platforms,caption_draft,hashtags&status=in.(pending,prepared,awaiting_images,review)&publication_locked=eq.true&order=created_at.asc&limit=25");
+  for(const job of jobs){
+    if(!Array.isArray(job.target_platforms) ||
+       !job.target_platforms.some((p:string)=>p==="instagram"||p==="facebook"))continue;
+    if(!allowedProductImage(job.source_image_url))continue;
+    const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path&job_id=eq."+job.id+"&order=slide_number.asc");
+    if(slides.length!==4 || slides.some((s:any)=>s.status!=="pending"||s.image_path) ||
+       slides.some((s:any)=>![1,2,3,4].includes(Number(s.slide_number))))continue;
+    const previewRows=await admin("/rest/v1/dropec_premium_previews?select=id,status,poster_path,reference_mode&job_id=eq."+job.id+"&variant=eq.2&limit=1");
+    const preview=previewRows?.[0];
+    if(!preview){
+      const utcMidnight=new Date().toISOString().slice(0,10)+"T00:00:00Z";
+      const today=await admin("/rest/v1/dropec_premium_previews?select=id&variant=eq.2&created_at=gte."+encodeURIComponent(utcMidnight)+"&limit=100");
+      if(today.length>=limit)return response({ok:true,action:"daily_limit",limit,publication_locked:true,publishing_enabled:false});
+      await admin("/rest/v1/dropec_premium_previews",{
+        method:"POST",headers:{Prefer:"return=minimal"},
+        body:JSON.stringify({job_id:job.id,variant:2,status:"queued",prompt:prompt(job.product_name,2)}),
+      });
+      return response({ok:true,action:"cover_queued",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    if(preview.status!=="ready"||!preview.poster_path)continue;
+    if(!["catalog_reference","low_resolution_reference","promotional_reference"].includes(preview.reference_mode)){
+      return response({ok:true,action:"requires_real_photo",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    const spec=Array.isArray(job.prompt_bundle?.slides)
+      ?job.prompt_bundle.slides.find((s:any)=>Number(s?.slide)===3):null;
+    const benefits=validatedBenefits(spec?.benefits,spec?.benefits_source);
+    if(!benefits){
+      return response({ok:true,action:"requires_sourced_benefits",job_id:job.id,publication_locked:true,publishing_enabled:false});
+    }
+    // The same job must still be unmodified and locked before any write.
+    const latest=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path&job_id=eq."+job.id+"&order=slide_number.asc");
+    if(latest.length!==4||latest.some((s:any)=>s.status!=="pending"||s.image_path))continue;
+    const title=clean(job.product_name,120);
+    const price=Number(job.product_price);
+    const hashtags=["#DropEC","#Ecuador"];
+    const copy=title+"\\n\\n"+(price>0&&Number.isFinite(price)?"Precio de catálogo: $"+price.toFixed(2)+" (por confirmar).\\n":"")+
+      "Consulta disponibilidad y costo de envío antes de pagar. Escríbenos por mensaje para solicitar una cotización.\\n\\n"+hashtags.join(" ");
+    const updatedJob=await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id+"&status=eq."+job.status+"&publication_locked=eq.true",{
+      method:"PATCH",headers:{Prefer:"return=representation"},
+      body:JSON.stringify({status:"review",publication_locked:true,
+        ...(job.caption_draft?{}:{caption_draft:copy,hashtags,caption_reviewed:false}),
+        updated_at:new Date().toISOString()}),
+    });
+    if(!Array.isArray(updatedJob)||updatedJob.length!==1)continue;
+    for(const slide of latest){
+      const number=Number(slide.slide_number);
+      const patch=number===1
+        ? {role:"portada",image_path:preview.poster_path,status:"uploaded",render_error:null,render_after:null,render_started_at:null,
+            review_notes:"Portada Premium auto-seleccionada · validar producto real antes de publicación."}
+        : {role:number===2?"problema":number===3?"beneficios":"cierre",status:"pending",image_path:null,
+            render_error:PREMIUM_CAROUSEL_PENDING,render_attempts:0,render_after:null,render_started_at:null,
+            review_notes:"Carrusel Premium automático privado en cola; sin autorización ni publicación externa."};
+      const result=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq.pending",{
+        method:"PATCH",headers:{Prefer:"return=representation"},
+        body:JSON.stringify({...patch,updated_at:new Date().toISOString()}),
+      });
+      if(!Array.isArray(result)||result.length!==1)
+        throw new Error("Automatic staging interrupted; existing images and manual changes must be inspected");
+    }
+    return response({ok:true,action:"premium_carousel_queued",job_id:job.id,
+      queued_interiors:3,publication_locked:true,publishing_enabled:false});
+  }
+  return response({ok:true,action:"idle",publication_locked:true,publishing_enabled:false});
+}
+
 async function prepareCarousel(req: Request) {
   await requireOwner(req);
   const body=await req.json().catch(()=>( {} )) as Json;
@@ -528,6 +692,8 @@ Deno.serve(async (req: Request) => {
     gpu_required:true,no_paid_api:true,model:"FLUX.2-klein-4B",
   });
   try {
+    if(req.method==="POST" && path.endsWith("/carousel/ingest"))return await ingestSelectedProducts(req);
+    if(req.method==="POST" && path.endsWith("/carousel/auto-prepare"))return await autoPrepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/benefits"))return await saveBenefits(req);
     if(req.method==="POST" && path.endsWith("/carousel/prepare"))return await prepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/claim"))return await claimCarousel(req);

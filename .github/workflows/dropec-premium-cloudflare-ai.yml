@@ -72,6 +72,50 @@ jobs:
           echo "::add-mask::$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
 
+      - name: Import approved Woo products into the private Creative Studio queue
+        if: steps.preflight.outputs.ready == 'true'
+        shell: bash
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+          FEED: https://kzwzputkwcpojevffjrm.supabase.co/functions/v1/dropec-creative-feed
+        run: |
+          set -euo pipefail
+          if curl --fail-with-body --silent --show-error --max-time 28 \
+            -H "Authorization: Bearer $TOKEN" "$FEED" > /tmp/dropec-approved-catalog.json; then
+            if curl --fail-with-body --silent --show-error --max-time 28 -X POST "$ENDPOINT/carousel/ingest" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              --data-binary @/tmp/dropec-approved-catalog.json > /tmp/dropec-ingest.json; then
+              python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/dropec-ingest.json'))
+          if data.get('ok') is not True or data.get('publishing_enabled') is not False:
+              raise SystemExit('Catalog import did not fail closed')
+          print('Private Woo catalog import:',data.get('action','unknown'))
+          PY
+            else
+              echo "::warning::Import service unavailable; existing Premium queue continues."
+            fi
+          else
+            echo "::warning::Read-only catalog unavailable; existing Premium queue continues."
+          fi
+
+      - name: Automatically prepare selected Premium products in private staging
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/carousel/auto-prepare" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-auto.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/dropec-auto.json'))
+          if data.get("ok") is not True or data.get("publishing_enabled") is not False:
+              raise SystemExit("Private Premium autopilot failed closed")
+          print("Premium auto-prepare:",data.get("action","unknown"))
+          PY
+
       - name: Lease one LOCKED private staging proposal
         if: steps.preflight.outputs.ready == 'true'
         id: claim
