@@ -245,6 +245,167 @@ async function regenerate(req: Request) {
   if(!Array.isArray(updated)||updated.length!==1)return response({error:"Preview changed during reset"},409);
   return response({ok:true,queued:1,archived:!!preview.poster_path,publication_locked:true,publishing_enabled:false});
 }
+
+// Premium carousel is an explicit owner-requested, staging-only queue.
+// The existing three Premium previews remain cover ALTERNATIVES; interiors
+// are stored in the existing four-slide review table, never in those previews.
+const PREMIUM_CAROUSEL_PENDING="premium_carousel_queued";
+const PREMIUM_CAROUSEL_ACTIVE="premium_carousel_active";
+
+async function prepareCarousel(req: Request) {
+  await requireOwner(req);
+  const body=await req.json().catch(()=>( {} )) as Json;
+  const previewId=validatedJobId(body.preview_id);
+  const selected=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,status,poster_path,reference_mode&id=eq."+previewId+"&limit=1");
+  const cover=selected?.[0];
+  if(!cover || cover.status!=="ready" || !cover.poster_path) return response({error:"Elige una portada Premium terminada"},409);
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&limit=1&id=eq."+cover.job_id);
+  const job=jobs?.[0];
+  if(!job || job.publication_locked!==true || !["review","awaiting_images"].includes(job.status)) {
+    return response({error:"Solo trabajos privados en revisión pueden generar interiores Premium"},409);
+  }
+  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,review_notes,render_error&job_id=eq."+job.id+"&order=slide_number.asc");
+  if(slides.length!==4 || slides.some((x:any)=>x.status==="approved" || x.status==="rendering")) {
+    return response({error:"No se reemplazan diapositivas aprobadas o en generación"},409);
+  }
+  const existing=slides.slice(1).every((x:any)=>
+    x.status==="uploaded" && x.review_notes?.startsWith("Premium cinematográfico"));
+  if(existing && slides[0].image_path===cover.poster_path) {
+    return response({ok:true,already_prepared:true,queued:0,publication_locked:true,publishing_enabled:false});
+  }
+  // Archive old pictures before changing ANY path; never delete storage.
+  for(const item of slides) {
+    const keep=item.slide_number===1?cover.poster_path:null;
+    if(item.image_path && item.image_path!==keep) {
+      await admin("/rest/v1/dropec_creative_slide_versions?on_conflict=job_id,slide_number,image_path",{
+        method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+        body:JSON.stringify({job_id:job.id,slide_number:item.slide_number,
+          image_path:item.image_path,previous_status:item.status,review_notes:item.review_notes||null}),
+      });
+    }
+  }
+  // Job must stay review, not generating, to prevent the old photo-pasting
+  // cloud renderer from racing with this more accurate FLUX pipeline.
+  await admin("/rest/v1/dropec_creative_jobs?id=eq."+job.id,{
+    method:"PATCH",body:JSON.stringify({status:"review",publication_locked:true,
+      caption_reviewed:false,updated_at:new Date().toISOString()}),
+  });
+  for(const item of slides) {
+    const isCover=item.slide_number===1;
+    const patch=isCover?{
+      status:"uploaded",image_path:cover.poster_path,render_error:null,render_after:null,
+      render_started_at:null,
+      review_notes:"Portada cinematográfica elegida para revisión, "+(cover.reference_mode||"referencia sin verificar")+".",
+      updated_at:new Date().toISOString(),
+    }:{
+      status:"pending",image_path:null,render_attempts:0,render_after:null,
+      render_started_at:null,render_error:PREMIUM_CAROUSEL_PENDING,
+      review_notes:"En cola para ilustración Premium, sin publicación.",
+      updated_at:new Date().toISOString(),
+    };
+    const changed=await admin("/rest/v1/dropec_creative_slides?id=eq."+item.id+"&status=eq."+item.status,{
+      method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify(patch),
+    });
+    if(!Array.isArray(changed)||changed.length!==1) return response({error:"Cambió el estado de la diapositiva; vuelve a revisar"},409);
+  }
+  return response({ok:true,queued:3,job_id:job.id,publication_locked:true,
+    publishing_enabled:false,process_interval_minutes:15});
+}
+
+async function claimCarousel(req: Request) {
+  await requireRunner(req);
+  const old=new Date(Date.now()-25*60000).toISOString();
+  const stale=await admin("/rest/v1/dropec_creative_slides?select=id,render_attempts&status=eq.rendering&render_error=eq."+
+    PREMIUM_CAROUSEL_ACTIVE+"&render_started_at=lt."+encodeURIComponent(old)+"&limit=10");
+  for(const item of stale) {
+    const exhausted=Number(item.render_attempts||0)>=3;
+    await admin("/rest/v1/dropec_creative_slides?id=eq."+item.id+"&status=eq.rendering&render_error=eq."+PREMIUM_CAROUSEL_ACTIVE,{
+      method:"PATCH",body:JSON.stringify({status:exhausted?"error":"pending",
+        render_error:exhausted?"Premium worker lease expired":PREMIUM_CAROUSEL_PENDING,
+        render_started_at:null,
+        render_after:exhausted?null:new Date(Date.now()+15*60000).toISOString()}),
+    });
+  }
+  const rows=await admin("/rest/v1/dropec_creative_slides?select=id,job_id,slide_number,status,render_attempts,render_after&status=eq.pending&render_error=eq."+
+    PREMIUM_CAROUSEL_PENDING+"&slide_number=in.(2,3,4)&order=slide_number.asc&limit=25");
+  for(const item of rows) {
+    if(item.render_after && Date.parse(item.render_after)>Date.now())continue;
+    const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked,product_name,product_price,source_image_url&id=eq."+item.job_id+"&limit=1");
+    const job=jobs?.[0];
+    if(!job || job.publication_locked!==true || job.status!=="review")continue;
+    const cover=await admin("/rest/v1/dropec_creative_slides?select=image_path,status&job_id=eq."+job.id+"&slide_number=eq.1&limit=1");
+    if(!cover?.[0]?.image_path || !["uploaded","approved"].includes(cover[0].status))continue;
+    const acquired=await admin("/rest/v1/dropec_creative_slides?id=eq."+item.id+
+      "&status=eq.pending&render_error=eq."+PREMIUM_CAROUSEL_PENDING,{
+      method:"PATCH",headers:{Prefer:"return=representation"},
+      body:JSON.stringify({status:"rendering",render_error:PREMIUM_CAROUSEL_ACTIVE,
+        render_started_at:new Date().toISOString(),
+        render_attempts:Number(item.render_attempts||0)+1}),
+    });
+    if(!Array.isArray(acquired)||acquired.length!==1)continue;
+    const number=Number(item.slide_number);
+    const variant=({2:3,3:1,4:2} as Record<number,number>)[number];
+    const original=allowedProductImage(job.source_image_url);
+    return response({ok:true,processed:true,carousel:true,slide_number:number,
+      slide_id:item.id,preview_id:item.id,variant,
+      prompt:prompt(job.product_name,variant),
+      product_name:clean(job.product_name,130),price:job.product_price,
+      original_url:original,original_available:!!original,
+      publication_locked:true,conceptual_review_required:!original});
+  }
+  return response({ok:true,processed:false,reason:"no_queued_premium_carousel_slide"});
+}
+
+async function completeCarousel(req: Request) {
+  await requireRunner(req);
+  const id=validatedJobId(new URL(req.url).searchParams.get("slide_id"));
+  if(Number(req.headers.get("content-length")||0)>7*1024*1024) return response({error:"JPEG too large"},413);
+  if(!req.headers.get("content-type")?.startsWith("image/jpeg")) return response({error:"JPEG required"},415);
+  const slideRows=await admin("/rest/v1/dropec_creative_slides?select=id,job_id,slide_number,status,render_error,image_path&id=eq."+id+"&limit=1");
+  const slide=slideRows?.[0];
+  if(!slide || ![2,3,4].includes(slide.slide_number) || slide.status!=="rendering" ||
+     slide.render_error!==PREMIUM_CAROUSEL_ACTIVE || slide.image_path) return response({error:"No active private carousel lease"},409);
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&id=eq."+slide.job_id+"&limit=1");
+  if(jobs?.[0]?.publication_locked!==true || jobs?.[0]?.status!=="review")return response({error:"Carousel job no longer private"},409);
+  const data=new Uint8Array(await req.arrayBuffer());
+  if(data.byteLength<15000 || data.byteLength>7*1024*1024 ||
+    data[0]!==255 || data[1]!==216 || data[2]!==255) return response({error:"Invalid generated JPEG"},422);
+  const mode=req.headers.get("x-dropec-reference-mode")||"conceptual";
+  if(!["catalog_reference","promotional_reference","low_resolution_reference","conceptual"].includes(mode))return response({error:"Unknown reference mode"},422);
+  const path=slide.job_id+"/premium/carousel-slide-"+slide.slide_number+"-"+crypto.randomUUID()+".jpg";
+  await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:data});
+  const updated=await admin("/rest/v1/dropec_creative_slides?id=eq."+id+
+    "&status=eq.rendering&render_error=eq."+PREMIUM_CAROUSEL_ACTIVE,{
+    method:"PATCH",headers:{Prefer:"return=representation"},
+    body:JSON.stringify({status:"uploaded",image_path:path,render_error:null,
+      render_after:null,render_started_at:null,
+      review_notes:"Premium cinematográfico · "+(mode==="conceptual"?"IMAGEN ILUSTRATIVA; producto no verificado":"verificar fidelidad del producto")+
+        ". Revisión humana obligatoria, nunca publicar automáticamente.",
+      updated_at:new Date().toISOString()}),
+  });
+  if(!Array.isArray(updated)||updated.length!==1)return response({error:"Lease changed during upload"},409);
+  return response({ok:true,status:"uploaded",slide_number:slide.slide_number,
+    publication_locked:true,publishing_enabled:false});
+}
+
+async function failedCarousel(req: Request) {
+  await requireRunner(req);
+  const body=await req.json().catch(()=>( {} )) as Json;
+  const id=validatedJobId(body.slide_id);
+  const rows=await admin("/rest/v1/dropec_creative_slides?select=id,status,render_attempts,render_error&id=eq."+id+"&limit=1");
+  const item=rows?.[0];
+  if(!item || item.status!=="rendering" || item.render_error!==PREMIUM_CAROUSEL_ACTIVE)return response({error:"No active carousel lease"},409);
+  const detail=clean(body.error,210)||"Image generation error";
+  const retry=Number(item.render_attempts||0)<3;
+  await admin("/rest/v1/dropec_creative_slides?id=eq."+id+"&status=eq.rendering&render_error=eq."+PREMIUM_CAROUSEL_ACTIVE,{
+    method:"PATCH",body:JSON.stringify({status:retry?"pending":"error",
+      render_error:retry?PREMIUM_CAROUSEL_PENDING:detail,
+      render_started_at:null,render_after:retry?new Date(Date.now()+30*60000).toISOString():null,
+      review_notes:retry?"Premium: reintento automático pendiente.":"Premium requiere revisión: "+detail}),
+  });
+  return response({ok:true,retry,publication_locked:true});
+}
+
 async function failed(req: Request) {
   await requireRunner(req);
   const input=await req.json().catch(() => ({})) as Json;
@@ -270,6 +431,10 @@ Deno.serve(async (req: Request) => {
     gpu_required:true,no_paid_api:true,model:"FLUX.2-klein-4B",
   });
   try {
+    if(req.method==="POST" && path.endsWith("/carousel/prepare"))return await prepareCarousel(req);
+    if(req.method==="POST" && path.endsWith("/carousel/claim"))return await claimCarousel(req);
+    if(req.method==="POST" && path.endsWith("/carousel/complete"))return await completeCarousel(req);
+    if(req.method==="POST" && path.endsWith("/carousel/failed"))return await failedCarousel(req);
     if(req.method==="POST" && path.endsWith("/queue"))return await queue(req);
     if(req.method==="GET" && path.endsWith("/status"))return await status(req);
     if(req.method==="POST" && path.endsWith("/claim"))return await claim(req);

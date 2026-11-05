@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 import requests
 from PIL import Image, ImageOps, UnidentifiedImageError
-from compositor import build_poster,jpeg_bytes,source_quality
+from compositor import build_poster,build_carousel_slide,jpeg_bytes,source_quality
 from creative_brief import classify_reference, scene_prompt
 
 MODEL="@cf/black-forest-labs/flux-2-klein-4b"
@@ -145,8 +145,15 @@ def produce(preview: dict,account: str,token: str) -> tuple[bytes,str]:
     scene=generate_scene(preview,original,account,token)
     price=preview.get("price")
     value=None if price is None else float(price)
-    output=jpeg_bytes(build_poster(scene,original,str(preview["product_name"]),value,int(preview["variant"]),
-                                   reference_mode=mode))
+    if preview.get("carousel") is True:
+        number=int(preview.get("slide_number",0))
+        if number not in (2,3,4):
+            raise ValueError("Unapproved private carousel slide number")
+        output=jpeg_bytes(build_carousel_slide(
+            scene,original,str(preview["product_name"]),value,number,reference_mode=mode))
+    else:
+        output=jpeg_bytes(build_poster(scene,original,str(preview["product_name"]),value,int(preview["variant"]),
+                                       reference_mode=mode))
     return output,mode
 
 def main():

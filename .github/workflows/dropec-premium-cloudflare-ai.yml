@@ -81,6 +81,12 @@ jobs:
           set -euo pipefail
           curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/claim" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-claim.json
+          # Cover alternatives have priority. Then finish explicitly requested
+          # inner carousel slides with the SAME free provider + identity.
+          if python3 -c 'import json;d=json.load(open("/tmp/dropec-claim.json"));exit(0 if d.get("processed") is False else 1)'; then
+            curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/carousel/claim" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-claim.json
+          fi
           python3 <<'PY'
           import json,os,re
           v=json.load(open('/tmp/dropec-claim.json'))
@@ -90,8 +96,10 @@ jobs:
               raise SystemExit("Invalid private preview identity or publication lock")
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:
               output.write("processed="+("true" if done else "false")+"\n")
-              if done: output.write("preview_id="+v['preview_id']+"\n")
-          print("Leased one private premium job" if done else "Nothing to generate; no AI inference used")
+              if done:
+                  output.write("preview_id="+v['preview_id']+"\n")
+                  output.write("carousel="+("true" if v.get("carousel") is True else "false")+"\n")
+          print("Leased locked "+("carousel slide" if v.get("carousel") else "cover proposal") if done else "Nothing to generate; no AI inference used")
           PY
 
       - name: Install pinned open-license Anton display typography
@@ -120,11 +128,15 @@ jobs:
           PREVIEW_ID: ${{ steps.claim.outputs.preview_id }}
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --max-time 50 -X POST "$ENDPOINT/complete?preview_id=$PREVIEW_ID" \
+          endpoint="$ENDPOINT/complete?preview_id=$PREVIEW_ID"
+          if [ "${{ steps.claim.outputs.carousel }}" = "true" ]; then
+            endpoint="$ENDPOINT/carousel/complete?slide_id=$PREVIEW_ID"
+          fi
+          curl --fail-with-body --silent --show-error --max-time 50 -X POST "$endpoint" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" \
             -H "X-DropEC-Reference-Mode: $(cat /tmp/dropec-reference-mode.txt)" \
             --data-binary @/tmp/dropec-preview.jpg > /tmp/dropec-complete.json
-          python3 -c 'import json;assert json.load(open("/tmp/dropec-complete.json"))["status"]=="ready";print("Private preview stored; no public posting")'
+          python3 -c 'import json;assert json.load(open("/tmp/dropec-complete.json"))["status"] in ("ready","uploaded");print("Private premium image stored; never published")'
 
       - name: Record safe retry failure without publishing
         if: failure() && steps.claim.outputs.processed == 'true'
@@ -139,6 +151,17 @@ jobs:
           except Exception: message='Free AI unavailable or private staging upload failure'
           json.dump({'preview_id':os.environ['PREVIEW_ID'],'error':message},open('/tmp/dropec-error.json','w'))
           PY
-          curl --silent --show-error --max-time 25 -X POST "$ENDPOINT/failed" \
+          endpoint="$ENDPOINT/failed"
+          if [ "${{ steps.claim.outputs.carousel }}" = "true" ]; then
+            endpoint="$ENDPOINT/carousel/failed"
+            python3 - <<'PY'
+          import json
+          path='/tmp/dropec-error.json'
+          data=json.load(open(path))
+          data['slide_id']=data.pop('preview_id')
+          json.dump(data,open(path,'w'))
+          PY
+          fi
+          curl --silent --show-error --max-time 25 -X POST "$endpoint" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
             --data-binary @/tmp/dropec-error.json || true

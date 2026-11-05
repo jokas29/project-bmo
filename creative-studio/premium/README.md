@@ -40,6 +40,36 @@ evitar cambios silenciosos y verifica la aparición de glifos con tildes.
 No se incorpora ni entrega al usuario ningún archivo tipográfico
 propietario. Anton es una alternativa de lenguaje similar, no Movault.
 
+## Carrusel Premium con portada aprobada (nuevo)
+
+Las tres propuestas Editorial 01/02/03 son **alternativas de portada**, no
+las tres diapositivas del carrusel. Seleccionar visualmente una propuesta
+lista y pulsar **Crear carrusel Premium de 4 diapositivas**:
+
+- Se adopta esa portada en diapositiva 1, manteniendo el nombre exacto en
+  Anton y centrando cada línea por los límites reales de sus glifos.
+- Se archivan las cuatro imágenes anteriores antes de reemplazarlas.
+- Se colocan **solo las diapositivas 2, 3 y 4** en una cola Premium privada;
+  quedan fuera del compositor heredado que pegaba el anuncio original.
+- El mismo GitHub Action gratuito, autenticado por OIDC, reinterpreta el
+  objeto con FLUX.2 y `rembg` y compone una imagen distinta para cada
+  interior: **«MÍRALO DE CERCA»**, **«OTRA PERSPECTIVA»** y
+  **«¿TE INTERESA?»**. Son mensajes genéricos revisables, sin añadir
+  funciones o beneficios ficticios. La cuarta diapositiva puede mostrar
+  precio y cotización solo desde datos existentes en el catálogo.
+- Si falta imagen original, la pieza se marca como conceptual en notas de
+  revisión, fuera de la portada. Los materiales no se aprueban solos.
+- Los cuatro JPG tienen la misma proporción editorial 2:3 para revisión;
+  un exportador seguro 4:5 para Instagram todavía debe añadirse antes de
+  cualquier publicación.
+
+Esta función requiere elegir una portada visualmente; las diapositivas
+2–4 continúan solas en la nube con reintentos limitados. Un trabajo con
+estado `review` y `publication_locked=true` no es consumido por el
+generador heredado de Cloud Render. El endpoint de inicio requiere la
+cuenta propietaria; los endpoints de generación y entrega requieren el
+workflow exacto de GitHub firmado por OIDC. Nunca se publica.
+
 ## Secuencia automatizada y salvaguardas
 
 1. El usuario prepara la portada en Creative Studio; queda bloqueada como

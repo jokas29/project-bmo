@@ -254,15 +254,17 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     title_y = 52
     lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
     for index,line in enumerate(lines):
-        # Contrast-led typography; the final line can use the brand's lime
-        # accent, but no additional words or badges are drawn.
+        # Center each visual line individually, including visible glyph
+        # bearings, so accented words are visually balanced at any length.
         color=lime if len(lines)>1 and index==len(lines)-1 else INK
-        draw.text((39,title_y+index*line_height),line,font=font,fill=color)
+        left,top,right,bottom=draw.textbbox((0,0),line,font=font)
+        x=round((W-(right-left))/2-left)
+        draw.text((x,title_y+index*line_height),line,font=font,fill=color)
     title_bottom=title_y+len(lines)*line_height
-    # A restrained editorial stroke, not a separate section/CTA.
+    # Centered editorial accent; no added letters or advertising slogans.
     decoration=ImageDraw.Draw(art,"RGBA")
     decoration.rounded_rectangle(
-        (39,title_bottom+7,149,title_bottom+11),
+        (round(W/2)-53,title_bottom+7,round(W/2)+53,title_bottom+11),
         radius=2,fill=(*lime,203)
     )
 
@@ -272,6 +274,124 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     art.alpha_composite(fitted, (x, y))
     return art.convert("RGB")
 
+
+def _fit_carousel_subject(subject: Image.Image, slide_number: int,
+                          reserved_top: int, reserved_bottom: int):
+    """Large complete hero with composition offsets, no clipped attachments."""
+    if slide_number not in (2,3,4):
+        raise ValueError("Interior slide must be 2, 3 or 4")
+    top=max(205,reserved_top+23)
+    bottom=H-reserved_bottom
+    if top>=bottom-325:
+        raise SubjectExtractionError("No safe space for complete product")
+    max_w=round(W*(.91 if slide_number!=4 else .78))
+    max_h=bottom-top
+    scale=min(max_w/subject.width,max_h/subject.height)
+    w,h=max(1,round(subject.width*scale)),max(1,round(subject.height*scale))
+    foreground=subject.resize((w,h),Image.Resampling.LANCZOS)
+    center={2:394,3:343,4:408}[slide_number]
+    x=max(15,min(W-w-15,round(center-w/2)))
+    y=round(top+(bottom-top-h)*(.51 if slide_number!=3 else .42))
+    if x<15 or x+w>W-15 or y<top or y+h>bottom:
+        raise SubjectExtractionError("Interior composition clips product")
+    return foreground,x,y
+
+
+def _interior_title(canvas: Image.Image, value: str, *,
+                    y: int=54, size: int=85, align: str="center"):
+    """Only generic editorial storytelling; no invented physical benefits."""
+    draw=ImageDraw.Draw(canvas)
+    font=load_font(size)
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    # Allow only the three audited, marketing-safe headings below.
+    allowed={"MÍRALO DE CERCA","OTRA PERSPECTIVA","¿TE INTERESA?"}
+    if value not in allowed:
+        raise ValueError("Unreviewed interior advertising claim")
+    # Write each interior headline as two intentional typographic lines.
+    words={
+        "MÍRALO DE CERCA":("MÍRALO","DE CERCA"),
+        "OTRA PERSPECTIVA":("OTRA","PERSPECTIVA"),
+        "¿TE INTERESA?":("¿TE","INTERESA?"),
+    }
+    bottom=y
+    for i,segment in enumerate(words[value]):
+        weight=font
+        width=draw.textbbox((0,0),segment,font=weight)[2]
+        current=weight
+        if width>W-58:
+            for n in range(size-2,31,-2):
+                trial=load_font(n)
+                if draw.textbbox((0,0),segment,font=trial)[2]<=W-58:
+                    current=trial
+                    break
+            else:
+                raise ValueError("Interior headline does not fit")
+        bounds=draw.textbbox((0,0),segment,font=current)
+        x=round((W-(bounds[2]-bounds[0]))/2-bounds[0]) if align=="center" else 40
+        position=y+i*round(size*.94)
+        draw.text((x,position),segment,font=current,fill=lime if i==1 else INK)
+        bottom=max(bottom,position+round(current.size*1.02))
+    return bottom
+
+
+def build_carousel_slide(scene: Image.Image, original: Optional[Image.Image],
+                         product_name: str, price: Optional[float],
+                         slide_number: int, *,
+                         reference_mode: str="catalog_reference",
+                         subject: Optional[Image.Image]=None) -> Image.Image:
+    """Premium interior (2–4); the cover remains the approved design.
+
+    A fresh AI scene supplies the product cutout, never the original
+    listing advertisement. Copy is limited to generic, reviewable
+    storytelling and the *actual* catalogue price, if known. No
+    unsupported technical specifications or product performances.
+    """
+    if slide_number not in (2,3,4):
+        raise ValueError("Only inner slides 2, 3 and 4")
+    if reference_mode not in MODES:
+        raise ValueError("Unapproved reference mode")
+    if original is not None:
+        source_quality(original)
+    if not isinstance(product_name,str) or not 2<=len(product_name.strip())<=120:
+        raise ValueError("Invalid catalogue product name")
+    if price is not None:
+        price=float(price)
+        if not math.isfinite(price) or price<=0:
+            raise ValueError("Invalid catalogue price")
+
+    # Reuse the brand's studio light language across the carousel, but
+    # vary ambient hue and framing so interiors are not cloned covers.
+    bg_variant={2:3,3:1,4:2}[slide_number]
+    art=_editorial_background(bg_variant)
+    heading={2:"MÍRALO DE CERCA",3:"OTRA PERSPECTIVA",4:"¿TE INTERESA?"}[slide_number]
+    heading_bottom=_interior_title(art,heading,size=77 if slide_number==3 else 86)
+    body=_extract_subject(scene) if subject is None else _check_subject(subject)
+    extra_bottom=184 if slide_number==4 else 38
+    foreground,x,y=_fit_carousel_subject(body,slide_number,heading_bottom,extra_bottom)
+    art=Image.alpha_composite(art,_shadow_product(foreground,x,y))
+    art.alpha_composite(foreground,(x,y))
+    draw=ImageDraw.Draw(art)
+    lime=rgb(THEME["estilo"]["colores"]["acento_lima"])
+    if slide_number==4:
+        # Only in the final slide: documented catalogue price + quote request.
+        draw.line((48,H-169,W-48,H-169),fill=(*lime,150),width=2)
+        label="SOLICITA TU COTIZACIÓN"
+        label_font=load_font(31)
+        bb=draw.textbbox((0,0),label,font=label_font)
+        draw.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-151),
+                  label,font=label_font,fill=INK)
+        if price is not None:
+            amount=f"${price:,.2f}"
+            for point_size in range(66,29,-2):
+                pf=load_font(point_size)
+                if draw.textbbox((0,0),amount,font=pf)[2]<=W-110:
+                    break
+            else:
+                raise ValueError("Catalogue price cannot fit")
+            bb=draw.textbbox((0,0),amount,font=pf)
+            draw.text((round((W-(bb[2]-bb[0]))/2-bb[0]),H-102),amount,
+                      font=pf,fill=lime)
+    return art.convert("RGB")
 
 def jpeg_bytes(image: Image.Image) -> bytes:
     output = BytesIO()
