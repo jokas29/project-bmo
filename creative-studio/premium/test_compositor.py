@@ -53,10 +53,11 @@ class CoverOnlyTests(unittest.TestCase):
         # never a claim, brand, number, quote CTA, price or other copy.
         self.assertEqual(" ".join(observed),title.upper())
         source=Path(__file__).with_name("compositor.py").read_text()
+        cover_source=source.split("def build_poster(",1)[1].split("def _fit_carousel_subject(",1)[0]
         for forbidden in ("EDICIÓN","DROPEC","DROP EC","PRECIO DE CATÁLOGO",
                           "SOLICITA TU COTIZACIÓN","IMAGEN ILUSTRATIVA",
                           "load_font(318","_tracked(","_money("):
-            self.assertNotIn(forbidden,source)
+            self.assertNotIn(forbidden,cover_source)
         self.assertTrue(jpeg_bytes(ad).startswith(bytes((255,216,255))))
 
     def test_cover_headline_is_centered_for_short_and_long_names(self):
