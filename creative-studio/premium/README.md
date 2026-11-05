@@ -14,9 +14,14 @@ El diseño Premium se limita a **exactamente dos contenidos visuales**:
 No lleva logotipo DropEC, número gigante 01/02/03, «edición», «DROP EC /
 02», precio, llamada a la acción, contacto, slogan, características o
 líneas ornamentales. El precio puede existir en los datos de origen, pero
-**no se dibuja en la portada**. El fondo solo presenta un color marfil
-`#F5F3EF` con una sobria franja arquitectónica gris `#AAA6A0` detrás
-del sujeto; no constituye otra sección ni un anuncio pegado.
+**no se dibuja en la portada**. El fondo ahora es **una escena gráfica cinematográfica continua** en
+violetas profundos, con halos volumétricos, rebotes de iluminación,
+microtextura, arcos de luz y un suelo ligeramente reflectante. Todos esos
+elementos están **detrás del producto**, sin otro texto y sin foto
+rectangular o paneles grises. Conservamos el alto contraste y la tipografía
+Anton; el último renglón del nombre puede acentuarse en verde lima.
+Esto recupera profundidad y detalle de las primeras pruebas sin reintroducir
+precios, títulos ficticios ni productos secundarios.
 
 La estructura se aplica igual a cada SKU; no hay código especial para la
 máquina de ajo ni para otros productos. Hay 3 posibles colocaciones
@@ -38,7 +43,9 @@ propietario. Anton es una alternativa de lenguaje similar, no Movault.
 ## Secuencia automatizada y salvaguardas
 
 1. El usuario prepara la portada en Creative Studio; queda bloqueada como
-   propuesta privada en Supabase B.
+   propuesta privada en Supabase B. El estilo ambiental se elige por variante,
+   no por ID de producto; los tres fondos se generan de forma determinista
+   en CPU con Pillow, sin una segunda llamada a modelos de pago.
 2. GitHub comprueba la disponibilidad gratuita del generador antes de
    reclamar un trabajo en cola. El Mac no necesita estar encendido.
 3. FLUX.2 reinterpreta la foto de origen cuando existe, evitando reutilizar
@@ -63,7 +70,7 @@ todas las redes sociales.
 
 `test_compositor.py` intercepta el texto dibujado para comprobar que
 **no aparece nada salvo el nombre exacto en mayúsculas**, evalúa dimensiones,
-tildes, precio omitido, todas las variantes, nombres de diferentes
-categorías, escala del producto y recorte. Los workflows de CI verifican
+tildes, precio omitido, las tres variantes cinematográficas con profundidad
+lumínica, nombres de distintas categorías, escala del producto y recorte. Los workflows de CI verifican
 que ambos ejecutores instalan la fuente oficial validada, que la
 segmentación es gratuita y que se mantiene la seguridad de staging/OIDC.
