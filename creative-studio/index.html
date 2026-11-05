@@ -477,7 +477,7 @@ async function signed(path,download=false){
  return link.startsWith("http")?link:SUPABASE_URL+(link.startsWith("/storage/v1/")?"":"/storage/v1")+link
 }
 async function renderSlides(){
- const holder=$("slides");holder.replaceChildren();const names=["Portada","Problema","Solución","Cierre"];
+ const holder=$("slides");holder.replaceChildren();const names=["Portada","En uso","Consejos","Precio y contacto"];
  for(let i=1;i<=4;i++){const s=slides.find(x=>x.slide_number===i);const d=text("article",null,"slide");d.append(text("h3",i+" · "+names[i-1]),text("small",s?(s.status==="approved"?"Aprobada":s.status==="rejected"?"Rechazada":s.status==="uploaded"?"Para revisión":s.status==="rendering"?"Generando en la nube":s.status==="error"?"Error de generación":"Pendiente"):"Sin imagen"));
  const media=text("div",null,"slide-preview");if(s&&s.image_path&&s.status!=="pending"){const img=document.createElement("img");img.alt="Diseño "+i;media.append(img);signed(s.image_path).then(url=>img.src=url).catch(e=>media.append(text("small",e.message,"error")))}else media.append(text("small","Esperando imagen"));d.append(media);
  d.append(button("Copiar prompt",()=>copy(prompt(job,i))));
