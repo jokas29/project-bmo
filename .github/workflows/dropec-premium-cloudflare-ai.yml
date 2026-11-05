@@ -72,6 +72,23 @@ jobs:
           echo "::add-mask::$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
 
+      - name: Automatically prepare selected Premium products in private staging
+        if: steps.preflight.outputs.ready == 'true'
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 30 -X POST "$ENDPOINT/carousel/auto-prepare" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' > /tmp/dropec-auto.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/dropec-auto.json'))
+          if data.get("ok") is not True or data.get("publishing_enabled") is not False:
+              raise SystemExit("Private Premium autopilot failed closed")
+          print("Premium auto-prepare:",data.get("action","unknown"))
+          PY
+
       - name: Lease one LOCKED private staging proposal
         if: steps.preflight.outputs.ready == 'true'
         id: claim
