@@ -12,6 +12,8 @@ on:
       - 'creative-studio/premium/cloudflare_runner.py'
       - 'creative-studio/premium/compositor.py'
       - 'creative-studio/premium/creative_brief.py'
+      - 'creative-studio/premium/editorial_theme.json'
+      - 'creative-studio/premium/install_display_font.sh'
 
 permissions:
   contents: read
@@ -92,9 +94,11 @@ jobs:
           print("Leased one private premium job" if done else "Nothing to generate; no AI inference used")
           PY
 
-      - name: Install open-source editorial Lato font family
+      - name: Install pinned open-license Anton display typography
         if: steps.claim.outputs.processed == 'true'
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-lato
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-input Pillow==12.1.0
+          bash creative-studio/premium/install_display_font.sh
 
       - name: Install pinned CPU compositor dependencies
         if: steps.claim.outputs.processed == 'true'

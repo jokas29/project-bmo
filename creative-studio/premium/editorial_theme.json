@@ -1,164 +1,79 @@
 {
-  "tipo": "publicidad_de_producto",
+  "tipo": "portada_publicitaria_de_producto",
   "formato": {
     "ancho": 736,
     "alto": 1104,
     "orientacion": "vertical",
     "proporcion": "2:3",
-    "destino": "previsualizacion_editorial_privada"
+    "destino": "revision_privada"
   },
   "estilo": {
-    "diseno": "minimalista, editorial, tecnologico y premium",
-    "estetica": "campaña de lujo moderna con jerarquia tipografica dramatica, sin copiar marcas",
+    "diseno": "editorial contundente, minimalista y con producto protagonista",
     "fondo": "#F5F3EF",
     "colores": {
-      "principal": "#000000",
-      "secundario": "#B5B1AB",
       "fondo_claro": "#F5F3EF",
       "fondo_central": "#AAA6A0",
       "texto": "#111111"
     },
     "tipografia": {
-      "familia": "Lato, alternativa libre a Helvetica Neue",
-      "titulo": "black",
-      "descripcion": "regular",
-      "detalles": "light, medium",
-      "caracteristicas": "sans-serif compacta",
-      "espaciado_letras": "controlado"
+      "familia": "Anton",
+      "licencia": "SIL OFL 1.1",
+      "referencia": "peso y condensación editorial similar al carácter de Movault, sin copiar la fuente",
+      "titulo": "display condensed extra heavy",
+      "formato": "MAYÚSCULAS",
+      "acentos": "conservar tildes y Ñ"
     }
   },
   "composicion": {
-    "estructura": {
-      "tipo": "poster publicitario vertical",
-      "distribucion": "asimetrica y editorial",
-      "espaciado": "amplio y equilibrado",
-      "superposiciones": true
-    },
-    "fondo_principal": {
-      "color": "#F5F3EF",
-      "textura": "lisa",
-      "iluminacion": "suave"
-    },
     "panel_central": {
-      "tipo": "rectangulo vertical",
+      "habilitado": true,
+      "tipo": "rectangulo_vertical_de_fondo",
       "color": "#AAA6A0",
-      "posicion": "centro",
       "ancho": "28%",
       "alto": "92%",
-      "efecto": "contraste de fondo"
+      "sin_texto": true
     },
     "producto_visual": {
-      "objeto": "producto_real_o_ilustracion_conceptual",
-      "cantidad": "una unidad, salvo evidencia fiable de más vistas",
+      "objeto": "producto_dinamico",
       "posicion": "centro",
-      "escala": "muy grande",
-      "perspectiva": "tres cuartos, solo si respeta producto",
-      "estilo": "fotografia hiperrealista",
-      "iluminacion": "estudio profesional",
-      "sombras": "realistas y difusas",
-      "superposicion": "delante de panel, grafismo y número editorial"
+      "escala": "máxima sin recortar",
+      "delante_del_fondo": true,
+      "imagen": "generada_reinterpretando_foto_si_existe_o_conceptual_si_no",
+      "sombras": "realistas_y_sutiles"
     },
-    "numero_decorativo": {
-      "contenido": "numero_de_la_propuesta_01_02_03",
-      "posicion": "inferior_izquierda",
-      "color": "#111111",
-      "tamano": "gigante",
-      "superposicion": "detras_del_producto"
-    },
-    "columna_derecha": {
-      "uso": "solo_caracteristicas_verificadas",
-      "sin_datos": "omitir_texto"
-    },
-    "variantes_color": {
-      "uso": "solo_colores_verificados",
-      "sin_datos": "omitir_muestras"
+    "titulo": {
+      "contenido": "nombre_exacto_catalogo",
+      "posicion": "superior",
+      "jerarquia": "dominante",
+      "alineacion": "izquierda",
+      "saltos": "dinámicos sin truncar"
     }
   },
   "textos": {
-    "marca": {
-      "contenido": "DropEC",
-      "posicion": "superior_izquierda",
-      "color": "#111111",
-      "tamano": "pequeno",
-      "peso": "medium",
-      "icono": null
-    },
-    "nombre_producto": {
-      "contenido": "nombre_del_catalogo",
-      "posicion": "superior_izquierda",
-      "color": "#000000",
-      "tamano": "extra_grande",
-      "peso": "black",
-      "alineacion": "izquierda",
-      "interlineado": "compacto"
-    },
-    "descripcion_producto": {
-      "contenido": "solo_datos_verificados",
-      "posicion": "debajo_del_nombre",
-      "peso": "regular",
-      "si_no_hay": "omitir"
-    },
-    "texto_superior_derecho": {
-      "contenido": "DROP EC / EDICION N",
-      "posicion": "superior_derecha",
-      "tamano": "muy_pequeno",
-      "espaciado_letras": "amplio",
-      "decoracion": "linea horizontal inferior"
-    },
-    "numero_decorativo": {
-      "contenido": "indice_de_propuesta",
-      "posicion": "inferior_izquierda"
-    },
-    "precio": {
-      "contenido": "precio_de_catalogo_si_existe",
-      "posicion": "inferior_izquierda",
-      "sin_precio": "omitir"
-    },
-    "llamada_a_la_accion": {
-      "contenido": "SOLICITA TU COTIZACIÓN",
-      "posicion": "inferior_izquierda",
-      "decoracion": "linea_fina"
-    },
-    "eslogan_inferior": {
-      "contenido": null,
-      "motivo": "No inventar claims"
-    },
-    "contacto": {
-      "telefono": null,
-      "direccion": null,
-      "motivo": "Sin información verificada"
-    }
-  },
-  "caracteristicas": {
-    "posicion": "columna_derecha",
-    "elementos": [],
-    "fuente": "solo_catalogo_verificado",
-    "estilo_iconos": {
-      "tipo": "lineal",
-      "color": "#111111",
-      "grosor": "fino"
-    }
-  },
-  "variantes_color": {
-    "colores": [],
-    "fuente": "solo_catalogo_verificado"
+    "permitidos_en_portada": [
+      "nombre_producto"
+    ],
+    "prohibidos": [
+      "DROPEC",
+      "EDICIÓN",
+      "DROP EC /",
+      "número editorial",
+      "PRECIO DE CATÁLOGO",
+      "SOLICITA TU COTIZACIÓN",
+      "dirección",
+      "teléfono",
+      "eslogan",
+      "características",
+      "marcas añadidas"
+    ],
+    "precio_solo_fuera_de_portada": true,
+    "nota_conceptual_solo_fuera_de_portada": true
   },
   "instrucciones": {
-    "mantener_diseno_original": true,
-    "mantener_composicion": true,
-    "mantener_colores": true,
-    "mantener_tipografia": true,
-    "mantener_producto_visual": true,
-    "mantener_panel_central": true,
-    "mantener_elementos_decorativos": true,
-    "mantener_caracteristicas": true,
-    "mantener_textos_secundarios": true,
-    "reemplazar_nombre_por": "producto",
-    "reemplazar_descripcion_por": "solo_descripcion_verificada",
-    "no_agregar_textos_adicionales": true,
-    "calidad": "ultra alta",
-    "resultado": "poster editorial minimalista con sujeto hiperrealista y tipografia dominante",
-    "producto_dinamico": true,
+    "reutilizable_para_todos_los_productos": true,
+    "sin_imagen_original_permitido": true,
+    "no_inventar_caracteristicas": true,
+    "verificacion_humana_antes_de_publicar": true,
     "publicacion_automatica": false
   }
 }

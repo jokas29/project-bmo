@@ -1,87 +1,69 @@
-# DropEC Premium — Editorial 2:3 (staging B, 5 Nov 2026)
+# DropEC Premium — Portada editorial solo producto y nombre
 
-## Art direction chosen
+## Dirección visual aprobada para ensayar
 
-The owner rejected the generic green organic template and supplied an
-asymmetric luxury product-ad reference. `editorial_theme.json` now defines
-an **exact 736 × 1104, 2:3 private editorial preview** with:
+El usuario descartó la portada cargada de etiquetas y el número decorativo 02.
+El diseño Premium se limita a **exactamente dos contenidos visuales**:
 
-- a paper-white `#F5F3EF` seamless canvas;
-- a narrow `#AAA6A0` vertical architectural panel, **28% width and 92% height**;
-- `#111111` and `#000000` near-black type;
-- **open-source Lato Black/Heavy/Medium/Light**, in place of the former
-  generic DejaVu bold. Helvetica Neue is a proprietary typeface and is not
-  bundled or redistributed.
-- dynamically line-broken, large catalogue name at upper left;
-- exact catalog price when available and a restrained Spanish quote CTA;
-- a huge editorial proposal INDEX (`01`, `02`, `03`) behind the foreground
-  product. The index is not a product model or technical specification;
-- soft realistic shadow and single large foreground product overlapping
-  the gray panel and the index, never a rectangular original listing card.
+1. El nombre auténtico del producto del catálogo, sin abreviar ni inventar,
+   en **ANTON** (tipografía gratuita, condensada y de gran peso), presentado
+   en mayúsculas conservando tildes y ñ.
+2. El producto generado por FLUX, separado del fondo por rembg CPU,
+   en primer plano, grande, sin cortar ningún componente.
 
-This translates the **editorial composition** of the supplied smartphone
-reference, NOT its product details: no Apple logos, `18` model number,
-camera/chip/battery specifications, unsupported color variants, fabricated
-slogans, telephone numbers or addresses. Nor does DropEC automatically
-invent a second product view: only a real verified reference could justify
-a second view, so currently the poster keeps the actual single object.
+No lleva logotipo DropEC, número gigante 01/02/03, «edición», «DROP EC /
+02», precio, llamada a la acción, contacto, slogan, características o
+líneas ornamentales. El precio puede existir en los datos de origen, pero
+**no se dibuja en la portada**. El fondo solo presenta un color marfil
+`#F5F3EF` con una sobria franja arquitectónica gris `#AAA6A0` detrás
+del sujeto; no constituye otra sección ni un anuncio pegado.
 
-## Universal pipeline
+La estructura se aplica igual a cada SKU; no hay código especial para la
+máquina de ajo ni para otros productos. Hay 3 posibles colocaciones
+sutilmente diferentes del producto, pero la portada nunca muestra el número
+de variante. Los ejemplos de marcas o modelos de las imágenes del usuario
+solo orientan el lenguaje visual y la tipografía, no son productos reales
+para añadir al catálogo.
 
-1. The owner queues a locked private product in Creative Studio; jobs remain
-   idempotent and GitHub checks at roughly 15-minute intervals.
-2. Cloudflare Workers AI free FLUX.2 Klein (or separately configured free HF
-   Space) receives the original CDN image *only as a reference*, if available.
-   For no-photo products, the output is explicitly conceptual.
-3. The generative model creates the one product against a uniform gray
-   studio background, not an ad with invented lettering.
-4. Free `rembg[cpu]==2.0.86` + `u2netp` on ephemeral GitHub runners removes
-   the background. If extraction fails or a silhouette touches the edges, the
-   proposal fails safely rather than publishing a white rectangle.
-5. Pillow builds the designed poster using verified catalog text and price.
-   The reference promotional photograph is never pasted on top of the design.
-6. Preview is privately stored in Supabase B, retaining earlier versions
-   in `dropec_premium_preview_versions` for comparison and rollback.
-   Human fidelity/quality review is mandatory. **No social publishing.**
+## Tipografía libre, de origen comprobable
 
-## Important aspect-ratio distinction
+El archivo `install_display_font.sh` descarga exclusivamente en el
+ejecutor efímero de GitHub el archivo oficial `Anton-Regular.ttf` del
+repositorio **google/fonts**, licencia SIL Open Font License 1.1. Comprueba
+su Git blob SHA-1 `4d65707db9d8663ccfa99cd28cd3a4e0025be178` para
+evitar cambios silenciosos y verifica la aparición de glifos con tildes.
+No se incorpora ni entrega al usuario ningún archivo tipográfico
+propietario. Anton es una alternativa de lenguaje similar, no Movault.
 
-The user's newest reference specifies **2:3**, not the earlier 4:5
-1080×1350. This pipeline honors the 2:3 format for a private editorial
-preview. **It is not yet a validated Instagram or Facebook export.** Before
-enabling social uploads, create platform-specific safe variants without
-cropping the product, title, product price or CTA.
+## Secuencia automatizada y salvaguardas
 
-## Layout, typography and honest content
+1. El usuario prepara la portada en Creative Studio; queda bloqueada como
+   propuesta privada en Supabase B.
+2. GitHub comprueba la disponibilidad gratuita del generador antes de
+   reclamar un trabajo en cola. El Mac no necesita estar encendido.
+3. FLUX.2 reinterpreta la foto de origen cuando existe, evitando reutilizar
+   su publicidad; sin foto genera una interpretación conceptual del objeto.
+4. `rembg[cpu]` y `u2netp` extraen el producto. Si no pueden obtener un
+   objeto visible completo, el sistema falla sin presentar un anuncio falso.
+5. Pillow compone solo el nombre y la imagen. La foto del catálogo no se
+   pega en un rectángulo ni se sustituye al modelo.
+6. El JPEG 736×1104 (2:3) se guarda en almacenamiento **privado**. Los
+   originales anteriores se conservan en el historial antes de regenerar.
+   Sin aprobación ni publicación automática en redes.
 
-The compositor scales product silhouettes without cropping, and reserves
-separate no-overlap areas for title, price and CTA. Long names reduce type
-size rather than disappearing off-canvas. All three concept variants share
-the reference visual language but have subtle panel/product-position changes.
+**Importante:** con una foto de baja calidad el modelo puede alterar
+materiales o componentes; ninguna prueba técnica sustituye la revisión de
+identidad comercial. Si la foto original falta, la advertencia
+«IMAGEN ILUSTRATIVA — modelo no verificado» permanece **fuera de la
+imagen** en la interfaz de revisión. No aceptar la portada sin verificar
+el objeto. El formato 2:3 aún no equivale a un archivo optimizado para
+todas las redes sociales.
 
-A right-hand technical feature column and color swatches require
-**verified attributes from the product catalogue**, not deductions from a
-model-generated image. The current preview job only supplies name, price and
-optional reference photo, so these fields are deliberately absent. The
-architecture permits later data-mapped fields if the Woo source is expanded.
+## Pruebas
 
-The UI is still a private experiment, not an approved product advertisement.
-Without a verified photograph, the design must show
-`IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO`. Human review must reject
-product detail hallucinations, distorted shadows and uncertain exact SKUs.
-
-## Validation
-
-- `test_compositor.py` verifies 2:3 dimensions, exact neutral colors,
-  correct panel geometry, real Lato font loading, title wrapping, large
-  foreground product bounding boxes, no cropped silhouette, truthfulness,
-  segmentation failures and unchanged source photograph.
-- `test_cloudflare_runner.py` and `test_creative_brief.py` verify free
-  inference and all with/without reference paths.
-- CI installs `fonts-lato` and `rembg[cpu]` and loads the free ONNX
-  segmentation model before any main-branch deployment.
-- Cloudflare staging and HF free GPU workflows install the same fonts,
-  preserve the OIDC staging security boundary and write private JPEG only.
-
-Changes remain in private staging; do not switch on pricing, publication or
-paid inference automatically.
+`test_compositor.py` intercepta el texto dibujado para comprobar que
+**no aparece nada salvo el nombre exacto en mayúsculas**, evalúa dimensiones,
+tildes, precio omitido, todas las variantes, nombres de diferentes
+categorías, escala del producto y recorte. Los workflows de CI verifican
+que ambos ejecutores instalan la fuente oficial validada, que la
+segmentación es gratuita y que se mantiene la seguridad de staging/OIDC.
