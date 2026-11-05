@@ -23,6 +23,8 @@ class CreativeBriefTests(unittest.TestCase):
                     self.assertIn("AT LEAST 12% background clearance",prompt)
                     self.assertIn("ENTIRE PHYSICAL PRODUCT",prompt)
                     self.assertIn("NO writing",prompt)
+                    self.assertIn("NO split layout",prompt)
+                    self.assertLessEqual(len(prompt),2000)
                     self.assertIn("Product name",prompt)
                     self.assertNotIn("$",prompt)
 
