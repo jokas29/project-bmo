@@ -1,0 +1,82 @@
+"""Category-aware creative direction for ALL DropEC products.
+
+Never invent product specifications, sizes, benefits or exact appearance.
+An image reference from a listing is not proof that FLUX faithfully preserved
+the item. Without a usable source, output is explicitly conceptual.
+"""
+from __future__ import annotations
+import re
+import unicodedata
+
+_SCENES = (
+    "Premium hero advertising photography, considered studio lighting, deep violet atmosphere with restrained neon-lime accent reflections.",
+    "Editorial product photography, elegant angled studio perspective, polished shadows, controlled violet highlights, dynamic depth.",
+    "Lifestyle-inspired product visualization in an appropriate everyday setting, natural dramatic light and refined commercial styling.",
+)
+_CONTEXT = {
+    "cocina": ("cocina", "alimento", "olla", "cuchillo", "picador", "licuadora", "cortar", "utensilio", "horno", "sarten", "chef", "cafetera"),
+    "tecnologia": ("electronico", "tecnologia", "auricular", "telefono", "cargador", "bluetooth", "computador", "usb", "parlante", "camara"),
+    "herramientas": ("herramienta", "destornillador", "taladro", "martillo", "tornillo", "bricolaje", "mueble", "llave", "alicate"),
+    "bienestar": ("cosmetico", "belleza", "piel", "maquillaje", "crema", "cabello", "cuidado", "masaje", "perfume", "salud"),
+    "deporte": ("ejercicio", "entrenamiento", "deporte", "fitness", "mancuerna", "yoga", "bicicleta", "gimnasio"),
+    "hogar": ("casa", "hogar", "decoracion", "limpieza", "organizador", "lampara", "almohada", "escritorio", "sofa"),
+}
+_CONTEXT_SCENE = {
+    "cocina": "An uncluttered modern kitchen worktop with atmospheric practical lighting, not showing product operation.",
+    "tecnologia": "Modern technology tabletop set with tasteful ambient light, no screens displaying invented interfaces.",
+    "herramientas": "Neat neutral workshop table with realistic materials, no unsafe demonstrations.",
+    "bienestar": "Elegant personal-care studio with subtle botanical elements, no implied medical effects.",
+    "deporte": "Clean fitness editorial background with balanced natural textures, no performance claims.",
+    "hogar": "Contemporary home interior backdrop with understated decor and generous uncluttered space.",
+    "general": "Neutral premium editorial studio, no fabricated context, no additional accessories.",
+}
+
+def normalize(value: str) -> str:
+    return "".join(ch for ch in unicodedata.normalize("NFD", value.lower())
+                   if unicodedata.category(ch) != "Mn")
+
+def category_for_name(name: str) -> str:
+    value = normalize(name)
+    for category, words in _CONTEXT.items():
+        if any(re.search(r"(?<!\w)" + re.escape(term) + r"\w*", value) for term in words):
+            return category
+    return "general"
+
+def classify_reference(image) -> str:
+    if image is None:
+        return "conceptual"
+    if min(image.size) < 160:
+        return "conceptual"
+    if min(image.size) < 400:
+        return "low_resolution_reference"
+    # Photo quality and identity are never certified by this heuristic.
+    return "catalog_reference"
+
+def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
+    if not isinstance(product_name, str) or not (2 <= len(product_name.strip()) <= 120):
+        raise ValueError("Invalid product name")
+    if variant not in (1, 2, 3):
+        raise ValueError("Invalid concept variant")
+    category = category_for_name(product_name)
+    ref = reference_mode != "conceptual"
+    instruction = (
+        "Image 0 is a product LISTING REFERENCE. Reinterpret only the real physical item, "
+        "not its original promotional background, logos, text, diagram, graphics or packaging. "
+        "Preserve its physical shape, parts, colors and proportions as closely as possible. "
+        "Do not add missing features, components, accessories or interfaces. "
+        if ref else
+        "NO verified reference photo is provided. Create an atmospheric CONCEPTUAL "
+        "representation of the product category only, not an exact or verified SKU. "
+        "Avoid recognizable brand marks, precise model details or supposed functional components. "
+    )
+    return " ".join((
+        instruction,
+        _SCENES[variant - 1],
+        _CONTEXT_SCENE[category],
+        "Portrait 4:5 ad scene, striking hero object in the CENTRAL 35%-80% vertical band, "
+        "clear unoccupied space across TOP 0%-33% and BOTTOM 82%-100% for later typography. "
+        "NO writing, lettering, labels, badges, logos, prices, watermarks, buttons or numbers "
+        "anywhere in the generated image. No invented benefits, warranty, health claims or measurements. "
+        "Premium photographic detail, cohesive natural lighting and contact shadows.",
+        "Product name for thematic context only: " + " ".join(product_name.split()) + ".",
+    ))
