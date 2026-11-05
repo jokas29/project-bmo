@@ -61,7 +61,7 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
     ref = reference_mode != "conceptual"
     instruction = (
         "Image 0 is a product LISTING REFERENCE. Reinterpret only the real physical item, "
-        "not its original promotional background, logos, text, diagram, graphics or packaging. "
+        "not its original promotional background, logos, marketing text, diagram, graphics or packaging. "
         "Preserve its physical shape, parts, colors and proportions as closely as possible. "
         "Do not add missing features, components, accessories or interfaces. "
         if ref else
