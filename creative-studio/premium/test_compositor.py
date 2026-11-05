@@ -5,7 +5,7 @@ from pathlib import Path
 
 from compositor import (
     W, H, HERO_TOP, HERO_BOTTOM, STYLES, _full_scene_geometry,
-    _background, _price_font, build_poster, jpeg_bytes, source_quality
+    _background, _price_font, fit_lines, build_poster, jpeg_bytes, source_quality
 )
 
 
@@ -48,7 +48,13 @@ class PremiumUnifiedCanvasTests(unittest.TestCase):
                 x2,y2=int(size[0]*.82),int(size[1]*.82)
                 d.rectangle((x1,y1,x2,y2),fill=(200,59,80))
                 ad=build_poster(scene,self.reference,"Herramienta portátil",44,2)
-                x,y,w,h=_full_scene_geometry(scene,HERO_TOP,HERO_BOTTOM)
+                # Use the SAME title-dependent hero start as the real
+                # compositor. The image starts lower when a longer name wraps.
+                draw=ImageDraw.Draw(Image.new("RGBA",(W,H)))
+                lines,font=fit_lines("Herramienta portátil",945,draw,82)
+                title_bottom=143+len(lines)*int(getattr(font,"size",62)*1.17)
+                hero_top=max(HERO_TOP,title_bottom+20)
+                x,y,w,h=_full_scene_geometry(scene,hero_top,HERO_BOTTOM)
                 self.assertGreaterEqual(x,0)
                 self.assertLessEqual(x+w,W)
                 self.assertGreaterEqual(y,HERO_TOP)
