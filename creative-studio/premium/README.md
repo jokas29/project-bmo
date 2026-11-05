@@ -55,9 +55,9 @@ lista y pulsar **Crear carrusel Premium de 4 diapositivas**:
   objeto con FLUX.2 y `rembg` y compone una imagen distinta para cada
   interior en tres escenas de narrativa visual diferenciada:
   **2) uso en contexto realista con persona** conservando manos y entorno,
-  **3) imagen contextual y tres consejos legibles**, y **4) producto completo,
+  **3) imagen contextual y tres beneficios documentados**, y **4) producto completo,
   precio del catálogo y mensaje de contacto** sin inventar cuentas o teléfonos.
-  No se añaden beneficios técnicos, promesas de resultados ni instrucciones
+  No se inventan prestaciones, promesas ni instrucciones
   inexistentes. La escena de uso es ilustrativa y requiere revisión humana.
 - Si falta imagen original, la pieza se marca como conceptual en notas de
   revisión, fuera de la portada. Los materiales no se aprueban solos.
@@ -112,7 +112,17 @@ segmentación es gratuita y que se mantiene la seguridad de staging/OIDC.
 
 - La portada elegida mantiene nombre centrado en Anton y producto íntegro, sin precio.
 - La diapositiva 2 usa una escena FLUX con persona, contexto y uso plausible, preservados sin segmentación de silueta.
-- La diapositiva 3 combina un contexto diferente y tres tarjetas dibujadas por Pillow; acepta consejos de prompt_bundle.slides[slide=3].tips revisables o respaldo prudente por categoría.
+- La diapositiva 3 combina una imagen contextual diferente y tres tarjetas dibujadas por Pillow. Requiere `prompt_bundle.slides[slide=3].benefits` y `benefits_source` documentada; no hay respaldo genérico que invente ventajas.
 - La diapositiva 4 mantiene producto íntegro, precio de catálogo cuando esté disponible, mensaje de contacto y aviso de disponibilidad por confirmar; no inventa un número de teléfono.
 - El propietario puede recrear solo diapositivas 2–4 con la portada actual, archivando fotos previas y sin permitir carreras con renders ni cambios de aprobación.
-- El proceso sigue bloqueado para publicación; revisar manos, mecanismo, seguridad, apariencia del artículo, contenido de los tips y precio antes de aprobar.
+- El proceso sigue bloqueado para publicación; revisar manos, mecanismo, seguridad, apariencia del artículo, contenido de los beneficios y precio antes de aprobar.
+
+
+## Tres beneficios universales: fuente y seguridad (2026-11-05)
+
+- La plantilla funciona igual en cualquier SKU; diapositiva 3 = exactamente tres ventajas, no consejos ni instrucciones.
+- Fuente obligatoria en `prompt_bundle.slides[slide=3]`: `benefits` (tres frases distintas) y `benefits_source` (`supplier_listing`, `catalogue` u `owner_verified`). Sin estos datos, solo se detiene la imagen 3, sin texto de relleno.
+- La ficha comercial del proveedor no equivale a verificación independiente. Cada afirmación requiere revisión humana antes de aprobación. Prohibidos efectos médicos, promesas absolutas o métricas no comprobadas.
+- El propietario puede editar esas frases en Creative Studio; `POST /carousel/benefits` archiva la imagen 3 previa y regenera únicamente esa diapositiva. Mientras se genera se muestra la anterior rotulada como tal. Nunca se toca la portada ni las diapositivas 2 y 4.
+- Los diseños de portada de versiones antiguas requieren una regeneración explícita para aplicar las reglas de producto grande, título Anton centrado y fondo violeta cinematográfico. Las propuestas anteriores se archivan. Las referencias de 220 × 220 píxeles exigen mayor fotografía para garantizar fidelidad.
+- Todo permanece privado; no hay publicación automática ni reinicio del generador clásico.
