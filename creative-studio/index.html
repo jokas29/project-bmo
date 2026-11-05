@@ -39,7 +39,7 @@
  </div>
  <div class="bridge" id="premiumlab">
   <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
-  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Compatible con FLUX.2 Klein 4B en Cloudflare Workers AI Free o Hugging Face ZeroGPU. Mientras no haya un motor gratuito autorizado, las propuestas esperan en cola, sin sustituir las imágenes existentes ni publicar.</p>
+  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Motor universal FLUX.2 Klein 4B: usa la foto como referencia cuando existe, o genera una imagen conceptual identificada cuando no hay foto. La escena ocupa la composición sin pegar anuncios originales. Sin GPU gratuita, las propuestas esperan en cola y nunca se publican solas.</p>
   <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
   <div class="cards" id="premiumpreviews"></div>
@@ -320,6 +320,26 @@ async function adoptPremium(preview){
   await refreshCloud(true);await refreshPremium(true);
  }catch(e){msg("No se adoptó: "+e.message,true)}
 }
+async function regeneratePremium(preview){
+ if(!job||!session)return;
+ if(!window.confirm("¿Generar otra propuesta con el diseño universal? La imagen anterior se conservará en el historial privado. NO se publicará."))return;
+ try{
+  const result=await api(PREMIUM_API+"/regenerate","POST",{preview_id:preview.id});
+  if(!result.ok)throw Error(result.error||"No fue posible regenerar.");
+  msg("Regeneración en cola; conservamos la versión anterior.");
+  await refreshPremium(true);
+ }catch(e){msg("Regenerar Premium: "+e.message,true)}
+}
+async function premiumHistory(preview){
+ try{
+  const rows=await api("/rest/v1/dropec_premium_preview_versions?select=poster_path,archived_at&preview_id=eq."
+    +encodeURIComponent(preview.id)+"&order=archived_at.desc&limit=15");
+  if(!Array.isArray(rows)||!rows.length){msg("Aún no existen versiones anteriores de esta propuesta.");return}
+  const url=await signed(rows[0].poster_path,true);
+  window.open(url,"_blank","noopener,noreferrer");
+  msg("Historial Premium: "+rows.length+" versiones preservadas. Se abrió la más reciente.");
+ }catch(e){msg("Historial Premium: "+e.message,true)}
+}
 async function refreshPremium(silent=false){
  if(!job||!session)return;
  const holder=$("premiumpreviews"),state=$("premiumstate");
@@ -333,7 +353,14 @@ async function refreshPremium(silent=false){
   for(const p of previews){
    const card=text("article",null,"card"),body=text("div",null,"card-body");
    const label=["Portada A","Portada B","Escena editorial"][Number(p.variant)-1]||"Propuesta";
-   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando con IA":p.status==="queued"?"En cola / esperando motor IA gratuito":p.status==="needs_source"?"Requiere foto original de mayor calidad":"Revisión necesaria"));
+   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando con IA":p.status==="queued"?"En cola / esperando motor IA gratuito":"Revisión necesaria"));
+   const statusLabel=p.reference_mode==="conceptual"?"IMAGEN ILUSTRATIVA — modelo no verificado":
+    p.reference_mode==="low_resolution_reference"?"Referencia pequeña: revisar componentes y proporciones":
+    p.reference_mode==="legacy_overlay"?"Diseño anterior con fotografía pegada; regenera para cambiarlo":
+    p.reference_mode==="promotional_reference"?"Referencia promocional: revisión obligatoria":
+    p.reference_mode==="catalog_reference"?"Referencia de catálogo: revisión de fidelidad obligatoria":
+    "Propuesta sin verificar; no publicar sin inspección";
+   body.append(text("small",statusLabel,"muted"));
    if(p.poster_path&&p.status==="ready"){
     const media=text("div",null,"card-media");media.style.height="280px";
     const img=document.createElement("img");img.alt=label+" de prueba";media.append(img);card.append(media);
@@ -343,6 +370,10 @@ async function refreshPremium(silent=false){
      body.append(button("Usar como portada para revisar",()=>adoptPremium(p),"primary"));
     }
    }
+   if(!["approved","ready_to_publish","archived"].includes(job.status)&&p.status!=="processing"){
+    body.append(button("Regenerar con diseño universal",()=>regeneratePremium(p)));
+   }
+   if(p.status==="ready")body.append(button("Historial Premium",()=>premiumHistory(p)));
    if(p.render_error)body.append(text("small",p.render_error,"muted"));
    card.append(body);holder.append(card);
   }
