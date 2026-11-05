@@ -94,7 +94,7 @@ jobs:
 
       - name: Install pinned CPU compositor dependencies
         if: steps.claim.outputs.processed == 'true'
-        run: python3 -m pip install --disable-pip-version-check --no-input Pillow==11.3.0 requests==2.32.5
+        run: python3 -m pip install --disable-pip-version-check --no-input Pillow==11.3.0 requests==2.32.5 'rembg[cpu]==2.0.86'
 
       - name: Generate one real FLUX.2 scene and exact-text JPEG
         if: steps.claim.outputs.processed == 'true'
