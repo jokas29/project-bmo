@@ -138,7 +138,7 @@ def carousel_scene_prompt(product_name: str, slide_number: int, reference_mode: 
     # Furniture relocation tools are used beside actual furniture, not on a
     # workshop bench. Keep specificity limited to the catalogued product name.
     is_furniture_mover = bool(re.search(
-        r"\\b(?:mover|desplazar|trasladar)\\b.{0,30}\\bmuebles\\b",
+        r"\b(?:mover|desplazar|trasladar)\b.{0,30}\bmuebles\b",
         normalize(product_name)))
     has_ref = reference_mode != "conceptual"
     reference = (
