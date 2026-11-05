@@ -60,9 +60,19 @@ jobs:
               compositor.includes('dr.rounded_rectangle((72,panel_top')) {
             throw new Error('Premium must not paste the source advertisement over generated scene')
           }
-          if (!compositor.includes('HERO_TOP, HERO_BOTTOM') ||
-              !compositor.includes('reference_mode=="conceptual"')) {
-            throw new Error('Unified scene or honest no-photo disclosure missing')
+          if (!compositor.includes('reference_mode=="conceptual"') ||
+              !compositor.includes('IMAGEN ILUSTRATIVA') ||
+              !compositor.includes('SubjectExtractionError')) {
+            throw new Error('Conceptual labeling or fail-closed image extraction missing')
+          }
+          const theme = JSON.parse(fs.readFileSync('creative-studio/premium/editorial_theme.json','utf8'))
+          if (theme.formato.ancho!==1080 || theme.formato.alto!==1350 ||
+              theme.estilo.fondo!=='#FFFFFF' ||
+              theme.estilo.colores.principal!=='#29340A' ||
+              theme.estilo.colores.secundario!=='#ADE500' ||
+              theme.textos.contacto.telefono!==null ||
+              theme.textos.contacto.direccion!==null) {
+            throw new Error('Approved DropEC JSON design or verified-contact safeguards changed')
           }
           const cloud = fs.readFileSync('creative-studio/premium/cloudflare_runner.py','utf8')
           if (!cloud.includes('source_photo(preview.get("original_url"))') ||
@@ -72,19 +82,23 @@ jobs:
           const brief = fs.readFileSync('creative-studio/premium/creative_brief.py','utf8')
           if (!brief.includes('ENTIRE PHYSICAL PRODUCT') ||
               !brief.includes('AT LEAST 6% background clearance') ||
-              !brief.includes('80-85% of image height') ||
+              !brief.includes('#E8E8E8') ||
               !brief.includes('NO split layout')) {
-            throw new Error('Creative prompt no longer guarantees complete requested subject framing')
+            throw new Error('AI must output complete isolated product, not a backdrop or branded ad')
           }
-          if (!compositor.includes('_full_scene_geometry') ||
-              !compositor.includes('_feathered_foreground') ||
-              !compositor.includes('_background') ||
-              !compositor.includes('ImageFilter.GaussianBlur') ||
+          if (!compositor.includes('_organic_shapes') ||
+              !compositor.includes('_extract_subject') ||
+              !compositor.includes('_fit_product') ||
+              !compositor.includes('Image.alpha_composite') ||
               compositor.includes('ghost.text(') ||
-              compositor.includes('ghost_font=load_font(162)') ||
-              compositor.includes('PRICE_PANEL_TOP') ||
-              compositor.includes('draw.rounded_rectangle((50, PRICE_PANEL_TOP')) {
-            throw new Error('Editorial style must be a unified canvas, without hard header/image/footer bands')
+              compositor.includes('PRICE_PANEL_TOP')) {
+            throw new Error('JSON design needs organic shapes, alpha-cutout, subject forefront and no rigid card')
+          }
+          const cf = fs.readFileSync('.github/workflows/dropec-premium-cloudflare-ai.yml','utf8')
+          const hf = fs.readFileSync('.github/workflows/dropec-premium-gpu.yml','utf8')
+          if(!cf.includes("rembg[cpu]==2.0.86") ||
+             !hf.includes("rembg[cpu]==2.0.86")) {
+            throw new Error('Both free Premium runners must remove background on CPU')
           }
           if (!free.includes("cron: '*/15 * * * *'")) {
             throw new Error('Premium backlog no longer has timely automatic checks')
