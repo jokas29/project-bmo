@@ -106,20 +106,23 @@ jobs:
               !brief.includes('NO split layout')) {
             throw new Error('AI must output complete isolated product, not a backdrop or branded ad')
           }
+          const coverFunction = compositor.split('def build_poster(',2)[1]?.split('def _fit_carousel_subject(',1)[0] || ''
           if (!compositor.includes('_editorial_background') ||
               !compositor.includes('GaussianBlur(96)') ||
               !compositor.includes('halo=rgb(spec["halo"])') ||
-              !compositor.includes('_headline_layout') ||
+              !coverFunction.includes('_headline_layout') ||
+              !coverFunction.includes('textbbox') ||
+              !compositor.includes('build_carousel_slide(') ||
               !compositor.includes('_extract_subject') ||
               !compositor.includes('_fit_product') ||
               !compositor.includes('Anton-Regular.ttf') ||
               !compositor.includes('Image.alpha_composite') ||
-              compositor.includes('_tracked(') ||
-              compositor.includes('_money(') ||
-              compositor.includes('EDICIÓN') ||
-              compositor.includes('PRECIO DE CATÁLOGO') ||
-              compositor.includes('SOLICITA TU COTIZACIÓN')) {
-            throw new Error('Only a heavy condensed product-name headline and isolated full product can be rendered')
+              coverFunction.includes('_tracked(') ||
+              coverFunction.includes('_money(') ||
+              coverFunction.includes('EDICIÓN') ||
+              coverFunction.includes('PRECIO DE CATÁLOGO') ||
+              coverFunction.includes('SOLICITA TU COTIZACIÓN')) {
+            throw new Error('Cover must remain centered name+photo; audited interior carousel must be distinct')
           }
           const cf = fs.readFileSync('.github/workflows/dropec-premium-cloudflare-ai.yml','utf8')
           const hf = fs.readFileSync('.github/workflows/dropec-premium-gpu.yml','utf8')
@@ -144,6 +147,19 @@ jobs:
           }
           for (const x of ['path.endsWith("/regenerate")','/rest/v1/dropec_premium_preview_versions','original_url:source','allowedProductImage(value: unknown): string | null']){
             if (!edge.includes(x)) throw new Error('Missing universal private staging invariant: '+x)
+          }
+          for (const name of ['async function prepareCarousel','async function claimCarousel',
+             'async function completeCarousel','async function failedCarousel',
+             'PREMIUM_CAROUSEL_PENDING','/carousel/complete','publication_locked:true']) {
+            if (!edge.includes(name)) throw new Error('Secure premium carousel queue missing '+name)
+          }
+          if (!script[1].includes('function preparePremiumCarousel(') ||
+              !html.includes('Crear carrusel Premium de 4 diapositivas')) {
+            throw new Error('Owner UI missing explicit Premium carousel generation control')
+          }
+          if (!free.includes('/carousel/claim') || !free.includes('/carousel/complete') ||
+              !free.includes('/carousel/failed')) {
+            throw new Error('The same OIDC free-inference workflow must securely finish Premium interiors')
           }
           if (!edge.includes('dropec-premium-cloudflare-ai.yml@refs/heads/main')) {
             throw new Error('Cloudflare runner identity is missing from exact OIDC allowlist')
