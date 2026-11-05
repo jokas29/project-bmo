@@ -77,7 +77,7 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         instruction,
         _SCENES[variant-1],
         "Single physical product of category " + category + ".",
-        "ONE isolated photorealistic physical product, entire object visible "
+        "ONE isolated photorealistic ENTIRE PHYSICAL PRODUCT, entire object visible "
         "from highest to lowest point including handles, wires and accessories "
         "ONLY when actually attached in the reference. "
         "Keep AT LEAST 6% background clearance on ALL FOUR EDGES. "
