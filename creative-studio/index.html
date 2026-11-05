@@ -39,7 +39,7 @@
  </div>
  <div class="bridge" id="premiumlab">
   <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
-  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Requiere una GPU gratuita externa configurada; si no está disponible, no se sustituyen las imágenes actuales ni se cobra una API.</p>
+  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Compatible con FLUX.2 Klein 4B en Cloudflare Workers AI Free o Hugging Face ZeroGPU. Mientras no haya un motor gratuito autorizado, las propuestas esperan en cola, sin sustituir las imágenes existentes ni publicar.</p>
   <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
   <div class="cards" id="premiumpreviews"></div>
@@ -328,12 +328,12 @@ async function refreshPremium(silent=false){
   if(!result.ok)throw Error(result.error||"No disponible.");
   const previews=Array.isArray(result.previews)?result.previews:[];
   holder.replaceChildren();
-  if(!previews.length){state.textContent="Sin propuestas aún. Para generar se requiere un Space GPU externo configurado.";return}
+  if(!previews.length){state.textContent="Sin propuestas aún. La generación requiere configurar Cloudflare Workers AI Free o Hugging Face ZeroGPU.";return}
   state.textContent=previews.filter(p=>p.status==="ready").length+" de "+previews.length+" propuestas disponibles. Publicación bloqueada.";
   for(const p of previews){
    const card=text("article",null,"card"),body=text("div",null,"card-body");
    const label=["Portada A","Portada B","Escena editorial"][Number(p.variant)-1]||"Propuesta";
-   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando en GPU":p.status==="queued"?"En cola / esperando GPU":p.status==="needs_source"?"Requiere foto original de mayor calidad":"Revisión necesaria"));
+   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando con IA":p.status==="queued"?"En cola / esperando motor IA gratuito":p.status==="needs_source"?"Requiere foto original de mayor calidad":"Revisión necesaria"));
    if(p.poster_path&&p.status==="ready"){
     const media=text("div",null,"card-media");media.style.height="280px";
     const img=document.createElement("img");img.alt=label+" de prueba";media.append(img);card.append(media);
