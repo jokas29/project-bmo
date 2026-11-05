@@ -82,6 +82,12 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         "The single product is the dominant foreground subject, IN FRONT of any decorative props, "
         "with realistic contact shadow and natural depth. Keep all garnish/props behind it and "
         "avoid elements touching or covering the product. "
+        "Produce ONE seamless art-directed advertising image with continuous lighting, "
+        "consistent materials and background color. NO split layout, poster-within-poster, "
+        "product photo frame, collage, catalogue infographic, white card or isolated product cutout. "
+        "Visual hierarchy should feel like an editorial design campaign, not a template. "
+        "Our deterministic compositor adds its own exact branding and typography around this "
+        "scene; do not generate any of those elements yourself. "
         "NO writing, lettering, labels, badges, logos, prices, watermarks, buttons or numbers "
         "anywhere in the generated image. No invented benefits, warranty, health claims or measurements. "
         "Premium photographic detail and cohesive natural lighting.",
