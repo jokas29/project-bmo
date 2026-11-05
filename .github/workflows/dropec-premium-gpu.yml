@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dropec-premium-gpu.yml'
+      - 'creative-studio/premium/check_hf_space.py'
 
 permissions:
   contents: read
