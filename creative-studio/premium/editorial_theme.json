@@ -8,12 +8,14 @@
     "destino": "revision_privada"
   },
   "estilo": {
-    "diseno": "editorial contundente, minimalista y con producto protagonista",
-    "fondo": "#F5F3EF",
+    "diseno": "editorial cinematográfico inmersivo, violeta premium, luz de estudio, producto protagonista",
+    "fondo": "#150A2A",
     "colores": {
-      "fondo_claro": "#F5F3EF",
-      "fondo_central": "#AAA6A0",
-      "texto": "#111111"
+      "fondo_claro": "#150A2A",
+      "fondo_central": "#421C73",
+      "texto": "#F9F6FF",
+      "acento_lima": "#D2FF44",
+      "acento_lila": "#BE85F4"
     },
     "tipografia": {
       "familia": "Anton",
@@ -26,8 +28,8 @@
   },
   "composicion": {
     "panel_central": {
-      "habilitado": true,
-      "tipo": "rectangulo_vertical_de_fondo",
+      "habilitado": false,
+      "tipo": "sustituido_por_atmosfera_continua",
       "color": "#AAA6A0",
       "ancho": "28%",
       "alto": "92%",
@@ -46,7 +48,55 @@
       "posicion": "superior",
       "jerarquia": "dominante",
       "alineacion": "izquierda",
-      "saltos": "dinámicos sin truncar"
+      "saltos": "dinámicos sin truncar",
+      "color": "#F9F6FF",
+      "color_destacado": "#D2FF44",
+      "subrayado": "detalle gráfico fino, sin texto adicional"
+    },
+    "ambiente": {
+      "tipo": "estudio_fotografico_editorial_virtual",
+      "profundidad": "gradientes volumetricos, reflejos de estudio y siluetas graficas de baja opacidad",
+      "fondo": "continuo y sin paneles o secciones",
+      "focos": [
+        "halo difuso detrás del producto",
+        "reflejos morados",
+        "rebote lima muy sutil"
+      ],
+      "suelo": "profundidad y sombra de contacto suaves",
+      "decoraciones": "lineas finas, arcos de luz y destellos no textuales detras del objeto",
+      "evitar": [
+        "pegado de fotos originales",
+        "fondos planos",
+        "números decorativos",
+        "cajas rectangulares",
+        "textos secundarios"
+      ],
+      "variantes": [
+        {
+          "id": 1,
+          "nombre": "violeta editorial",
+          "superior": "#10051D",
+          "centro": "#4B206F",
+          "inferior": "#12061F",
+          "halo": "#AF63F3"
+        },
+        {
+          "id": 2,
+          "nombre": "ciruela cinematográfica",
+          "superior": "#1C092B",
+          "centro": "#652A87",
+          "inferior": "#140522",
+          "halo": "#D780E6"
+        },
+        {
+          "id": 3,
+          "nombre": "noche tecnológica",
+          "superior": "#100A25",
+          "centro": "#38267C",
+          "inferior": "#0E0720",
+          "halo": "#A6A4FF"
+        }
+      ]
     }
   },
   "textos": {
