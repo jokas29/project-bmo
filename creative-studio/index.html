@@ -293,10 +293,10 @@ function showGenerationState(){
  const count=slides.filter(x=>["uploaded","approved"].includes(x.status)).length;
  const working=slides.filter(x=>x.status==="rendering").length;
  const errors=slides.filter(x=>x.status==="error").length;
- const premiumActive=slides.some(s=>["premium_carousel_queued","premium_carousel_active"].includes(s.render_error)||(s.image_path||"").includes("/premium/carousel-slide-"));
- $("cloudstate").textContent=count+" de 4 diapositivas recibidas"+(working?" · "+working+" procesándose":"")+(errors?" · "+errors+" requieren revisión":"")+". "+(premiumActive?"Carrusel Premium: cola aproximadamente cada 15 minutos":"Ejecutor estándar en la nube cada 5 minutos")+"; sin publicación.";
- $("autogenerate").disabled=["approved","ready_to_publish","archived"].includes(job.status)||(job.status==="generating"&&!errors);
- $("rebuildcloud").disabled=["approved","ready_to_publish","archived"].includes(job.status)||working>0;
+ const premiumActive=slides.some(s=>["premium_carousel_queued","premium_carousel_active"].includes(s.render_error)||(s.image_path||"").includes("/premium/"));
+ $("cloudstate").textContent=count+" de 4 diapositivas recibidas"+(working?" · "+working+" procesándose":"")+(errors?" · "+errors+" requieren revisión":"")+". "+(premiumActive?"Carrusel Premium: cola aproximadamente cada 15 minutos":"Ejecutor estándar en la nube cada 5 minutos")+"; sin publicación."+(premiumActive?" Protegido: para cambios usa el Laboratorio Premium.":"");
+ $("autogenerate").disabled=premiumActive||["approved","ready_to_publish","archived"].includes(job.status)||(job.status==="generating"&&!errors);
+ $("rebuildcloud").disabled=premiumActive||["approved","ready_to_publish","archived"].includes(job.status)||working>0;
 }
 
 const PREMIUM_API="/functions/v1/dropec-premium-scene";
