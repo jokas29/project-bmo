@@ -192,6 +192,11 @@ async function compose(job: any, number: number) {
   if(data.byteLength>15*1024*1024) throw new Error("Rendered file exceeds storage cap");
   return {data,warning:lowQuality?"La foto original tiene resolución insuficiente ("+source.width+"×"+source.height+"); sustituir antes de aprobar.":null};
 }
+// Never let the classic renderer clear, lease, or recover a Premium slide.
+function isPremiumCarouselSlide(s: any): boolean {
+  return String(s.image_path || "").includes("/premium/") ||
+    ["premium_carousel_queued","premium_carousel_active"].includes(String(s.render_error || ""));
+}
 async function enqueue(req: Request) {
   await requireOwner(req);
   const body=await req.json();
@@ -201,7 +206,8 @@ async function enqueue(req: Request) {
   const job=list?.[0];
   if(!job) return response({error:"Product not found"},404);
   if(!["pending","prepared","generating","awaiting_images","review"].includes(job.status)) return response({error:"Job locked or already approved"},409);
-  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,status,image_path&job_id=eq."+id+"&order=slide_number.asc");
+  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,status,image_path,render_error&job_id=eq."+id+"&order=slide_number.asc");
+  if(slides.some(isPremiumCarouselSlide)) return response({error:"Carrusel Premium protegido: usa el Laboratorio Premium, no el generador clásico."},409);
   if(slides.length!==4) return response({error:"Expected exactly four slides"},409);
   let count=0;
   for(const s of slides) {
@@ -222,7 +228,8 @@ async function rebuild(req: Request) {
   const job=jobs?.[0];
   if(!job || !job.publication_locked) return response({error:"Locked product not found"},404);
   if(!["review","awaiting_images","generating"].includes(job.status)) return response({error:"Approved or unpublished job cannot be rebuilt"},409);
-  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,review_notes&job_id=eq."+id+"&order=slide_number.asc");
+  const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,review_notes,render_error&job_id=eq."+id+"&order=slide_number.asc");
+  if(slides.some(isPremiumCarouselSlide)) return response({error:"No se puede reconstruir un carrusel Premium con el motor clásico; utiliza el Laboratorio Premium."},409);
   if(slides.length!==4 || slides.some((x:any)=>["approved","rendering"].includes(x.status))) return response({error:"Cannot rebuild approved slides or while rendering"},409);
   let preserved=0;
   // Previous files are never deleted. Persist their paths before resetting the working queue.
@@ -247,8 +254,9 @@ async function rebuild(req: Request) {
 }
 async function recoverStale() {
   const before=new Date(Date.now()-12*60*1000).toISOString();
-  const stale=await admin("/rest/v1/dropec_creative_slides?select=id,render_attempts&status=eq.rendering&render_started_at=lt."+encodeURIComponent(before)+"&limit=20");
+  const stale=await admin("/rest/v1/dropec_creative_slides?select=id,render_attempts,render_error&status=eq.rendering&render_started_at=lt."+encodeURIComponent(before)+"&limit=20");
   for(const s of stale) {
+    if(isPremiumCarouselSlide(s)) continue; // Premium has its own 25-minute lease and retry policy.
     await admin("/rest/v1/dropec_creative_slides?id=eq."+s.id+"&status=eq.rendering",{method:"PATCH",body:JSON.stringify({status:s.render_attempts>=3?"error":"pending",render_error:"Interrupted render recovered",render_started_at:null,render_after:null})});
   }
 }
@@ -276,8 +284,8 @@ async function processOne(autoSelect=true) {
   await recoverStale();
   const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,product_name,product_price,source_image_url,prompt_bundle,caption_draft,status&status=eq.generating&order=created_at.asc&limit=15");
   for(const job of jobs) {
-    const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,render_after,render_attempts&job_id=eq."+job.id+"&order=slide_number.asc");
-    const pending=slides.find((s:any)=>s.status==="pending" && !s.image_path && (!s.render_after || new Date(s.render_after).getTime()<=Date.now()));
+    const slides=await admin("/rest/v1/dropec_creative_slides?select=id,slide_number,status,image_path,render_error,render_after,render_attempts&job_id=eq."+job.id+"&order=slide_number.asc");
+    const pending=slides.find((s:any)=>s.status==="pending" && !s.image_path && !isPremiumCarouselSlide(s) && (!s.render_after || new Date(s.render_after).getTime()<=Date.now()));
     if(!pending) continue;
     const acquired=await admin("/rest/v1/dropec_creative_slides?id=eq."+pending.id+"&status=eq.pending",{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({status:"rendering",render_started_at:new Date().toISOString(),render_attempts:Number(pending.render_attempts||0)+1,render_error:null})});
     if(!Array.isArray(acquired)||!acquired.length) continue;
@@ -286,7 +294,7 @@ async function processOne(autoSelect=true) {
       await ensureCaption(job);
       const {data,warning}=await compose(job,Number(pending.slide_number));
       const path=job.id+"/auto/slide-"+pending.slide_number+"-"+Date.now()+".jpg";
-      await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:data});
+      await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body:new Uint8Array(data).buffer});
       await admin("/rest/v1/dropec_creative_slides?id=eq."+pending.id+"&status=eq.rendering",{method:"PATCH",body:JSON.stringify({image_path:path,status:"uploaded",review_notes:warning,render_started_at:null,render_after:null,render_error:null})});
       const latest=await admin("/rest/v1/dropec_creative_slides?select=status&job_id=eq."+job.id);
       if(latest.length===4 && latest.every((s:any)=>["uploaded","approved"].includes(s.status))) {
