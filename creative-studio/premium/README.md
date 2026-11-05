@@ -28,15 +28,22 @@ review. Cloudflare's Free model quota is finite.
    the entire silhouette visible, at least 12% background clearance on every
    edge, the product in front of decorative props and no crop or close-up.
    This is a generation **request**, not a computer-vision guarantee.
-7. `compositor.py` uses a **contain**, not a cover/crop transform, so the
-   ENTIRE generated scene appears in a protected foreground hero region above
-   the CTA/price card and below the title. Blurred scenery fills unused side
-   margins. No catalogue poster or original-photo panel is pasted over the
-   generated product. The layout reserves a title-dependent vertical band;
-   product pixels in the hero can never be hidden by advertising text.
-   Exact catalogue name/price, neutral CTA and conceptual disclosure live in
-   separate layout sections. FLUX could itself generate an incomplete
-   physical product; owners must reject any such image.
+7. `compositor.py` now creates a **single unified editorial poster**
+   rather than a header + rectangular photograph + footer. The background is
+   a continuous, blurred and color-graded extension of the generated FLUX
+   scene across the **whole 1080×1350 canvas**. The entire scene is
+   contained as a softly feather-blended foreground so no generated corners
+   are cropped and no hard product-photo frame remains. Three generic
+   palette/alignment concepts provide different visual rhythms without any
+   category-specific or Woo-ID special cases. Oversized editorial branding
+   can sit behind the foreground scene; verified product name and catalogue
+   price sit within safe negative-space areas on **the same canvas**, with
+   no opaque footer card or horizontal section boundaries.
+   Where no reference exists, a visible illustration disclosure remains.
+   No logo or advertisement from the original catalogue photo is pasted in.
+   The model is prompted to keep the physical product entirely visible.
+   As always, FLUX itself may hallucinate or crop physical components; only
+   human review can establish whether the SKU is faithfully represented.
 8. A runner uploads the private 1080×1350 JPEG and a reference-confidence
    label into Supabase B using short-lived GitHub OIDC.
 9. The owner can compare variants, regenerate a preview without deleting
@@ -91,6 +98,31 @@ decision.** Cloudflare Free quota or inference errors may delay work.
   truly image-less catalogue entry before using for real campaigns.
 - Confirm that Instagram/Facebook publishing is disabled until an owner
   has approved the art and claims.
+
+## Editorial reference direction (November 2026)
+
+The three layout variants are **art-directed compositions**, not a single
+rigid reusable template. They interpret the user's references as general
+visual principles: continuous photographic background, confident scale,
+large typography, controlled negative space and product prominence. They
+do not reproduce the PlayStation, AirPods or realme logos, claims or artwork.
+
+- 1: dark premium brand palette with a left-aligned display headline.
+- 2: richer violet/magenta editorial palette with right-aligned display type.
+- 3: restrained bright-neutral studio backdrop with violet typography.
+
+The product itself is never pasted from the reference image; the entire
+FLUX output remains the hero. Distinct advertisement overlays are blended
+into the same canvas, with no dividing lines, opaque cards, framed source
+images, or hard top/bottom sections. The original source photo is used only
+to guide model inference. Prices and disclaimers remain faithful to known
+catalogue data; no unsupported technical claims are generated.
+
+`test_compositor.py` checks the continuity of gradients where old hard
+dividers used to appear, the intact inner 76% product-safe region for
+square/wide/tall scene ratios, concept version differences, pricing/variant
+validation and no-photo rendering. These are graphic correctness tests,
+not an automatic visual identity verifier.
 
 ## Known limits / deliberate safeguards
 

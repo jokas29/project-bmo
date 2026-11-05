@@ -73,17 +73,14 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         instruction,
         _SCENES[variant - 1],
         _CONTEXT_SCENE[category],
-        "ONE SQUARE 1:1 editorial photograph for a product-centered creative. "
-        "The ENTIRE PHYSICAL PRODUCT must be visible at once from its highest point to its base and "
-        "from leftmost to rightmost edge, including any protruding handles, cords or supports. "
-        "Use a medium-wide camera angle and zoom OUT until the complete product fits in the INNER "
-        "76% of the frame, with AT LEAST 12% background clearance on ALL FOUR EDGES. "
-        "Never crop any part of the product, never cut off the bottom, never use an extreme closeup. "
-        "The single product is the dominant foreground subject, IN FRONT of any decorative props, "
-        "with realistic contact shadow and natural depth. Keep all garnish/props behind it and "
-        "avoid elements touching or covering the product. "
-        "NO writing, lettering, labels, badges, logos, prices, watermarks, buttons or numbers "
-        "anywhere in the generated image. No invented benefits, warranty, health claims or measurements. "
-        "Premium photographic detail and cohesive natural lighting.",
+        "ONE SQUARE 1:1 seamless editorial advertisement. Show the ENTIRE PHYSICAL PRODUCT "
+        "from top to base and edge to edge including handles or cords, with AT LEAST 12% background clearance "
+        "on ALL FOUR EDGES. Medium-wide camera, zoom out, no extreme closeup or cut-off parts. "
+        "Product in dominant foreground, IN FRONT of all decorations, with natural contact shadow. "
+        "ONE coherent scene with continuous background and lighting. NO split layout, poster-in-poster, "
+        "photo frame, collage, catalogue infographic, white panel or cutout sticker. "
+        "The compositor will add exact text and brand separately. "
+        "NO writing, labels, logos, prices, watermarks, buttons or numbers inside the generated image. "
+        "Do not invent benefits, measurements or missing product components.",
         "Product name for thematic context only: " + " ".join(product_name.split()) + ".",
     ))
