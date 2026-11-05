@@ -73,10 +73,17 @@ def scene_prompt(product_name: str, variant: int, reference_mode: str) -> str:
         instruction,
         _SCENES[variant - 1],
         _CONTEXT_SCENE[category],
-        "Portrait 4:5 ad scene, striking hero object in the CENTRAL 35%-80% vertical band, "
-        "clear unoccupied space across TOP 0%-33% and BOTTOM 82%-100% for later typography. "
+        "ONE SQUARE 1:1 editorial photograph for a product-centered creative. "
+        "The ENTIRE PHYSICAL PRODUCT must be visible at once from its highest point to its base and "
+        "from leftmost to rightmost edge, including any protruding handles, cords or supports. "
+        "Use a medium-wide camera angle and zoom OUT until the complete product fits in the INNER "
+        "76% of the frame, with AT LEAST 12% background clearance on ALL FOUR EDGES. "
+        "Never crop any part of the product, never cut off the bottom, never use an extreme closeup. "
+        "The single product is the dominant foreground subject, IN FRONT of any decorative props, "
+        "with realistic contact shadow and natural depth. Keep all garnish/props behind it and "
+        "avoid elements touching or covering the product. "
         "NO writing, lettering, labels, badges, logos, prices, watermarks, buttons or numbers "
         "anywhere in the generated image. No invented benefits, warranty, health claims or measurements. "
-        "Premium photographic detail, cohesive natural lighting and contact shadows.",
+        "Premium photographic detail and cohesive natural lighting.",
         "Product name for thematic context only: " + " ".join(product_name.split()) + ".",
     ))

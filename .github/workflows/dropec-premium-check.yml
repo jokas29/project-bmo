@@ -68,7 +68,29 @@ jobs:
               !cloud.includes('classify_reference(original)')) {
             throw new Error('Cloudflare runner must support missing catalogue images')
           }
+          const brief = fs.readFileSync('creative-studio/premium/creative_brief.py','utf8')
+          if (!brief.includes('ENTIRE PHYSICAL PRODUCT') ||
+              !brief.includes('AT LEAST 12% background clearance')) {
+            throw new Error('Creative prompt no longer guarantees complete requested subject framing')
+          }
+          if (!compositor.includes('_full_scene_geometry') ||
+              !compositor.includes('PRICE_PANEL_TOP') ||
+              !compositor.includes('ImageOps.fit(source, (W, hero_h)')) {
+            throw new Error('Missing non-cropping foreground and separate footer layout')
+          }
+          if (!free.includes("cron: '*/15 * * * *'")) {
+            throw new Error('Premium backlog no longer has timely automatic checks')
+          }
+          if (!html.includes('3 ideas ya preparadas') ||
+              !html.includes('render_after') ||
+              !html.includes('setInterval(')) {
+            throw new Error('Idempotent queue/backoff visibility or automatic owner refresh missing')
+          }
           const edge = fs.readFileSync('creative-studio/premium/edge/index.ts','utf8')
+          if (!edge.includes('process_interval_minutes:15') ||
+              !edge.includes('render_after,render_started_at')) {
+            throw new Error('Private status endpoint missing estimated cadence or retry state')
+          }
           for (const x of ['path.endsWith("/regenerate")','/rest/v1/dropec_premium_preview_versions','original_url:source','allowedProductImage(value: unknown): string | null']){
             if (!edge.includes(x)) throw new Error('Missing universal private staging invariant: '+x)
           }

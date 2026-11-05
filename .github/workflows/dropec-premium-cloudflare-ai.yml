@@ -3,7 +3,7 @@ name: DropEC Premium — Cloudflare FLUX.2 Free Inference (staging only)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '23 * * * *'
+    - cron: '*/15 * * * *'
   push:
     branches: [main]
     paths:

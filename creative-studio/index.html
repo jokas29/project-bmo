@@ -39,8 +39,8 @@
  </div>
  <div class="bridge" id="premiumlab">
   <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
-  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto real y los textos exactos se superponen por separado. Motor universal FLUX.2 Klein 4B: usa la foto como referencia cuando existe, o genera una imagen conceptual identificada cuando no hay foto. La escena ocupa la composición sin pegar anuncios originales. Sin GPU gratuita, las propuestas esperan en cola y nunca se publican solas.</p>
-  <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
+  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto del catálogo sirve solo de referencia. FLUX intenta mostrar el producto completo y en primer plano; el diseño final reserva una zona para su imagen sin que el precio ni el título la tapen. Si falta una referencia fiable, la pieza se identifica como conceptual. Las propuestas se procesan en la nube aproximadamente cada 15 minutos (GitHub puede retrasarse); puedes cerrar la página. Todo queda privado, sin publicaciones automáticas.</p>
+  <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar hasta 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
   <div class="cards" id="premiumpreviews"></div>
  </div>
@@ -305,7 +305,8 @@ async function queuePremium(){
  try{
   const result=await api(PREMIUM_API+"/queue","POST",{job_id:job.id});
   if(!result.ok)throw Error(result.error||"No fue posible crear la cola.");
-  msg(result.queued+" propuestas Premium preparadas. Nada se publica ni se sustituye.");
+  if(result.queued>0)msg(result.queued+" ideas Premium añadidas a la cola. Procesamiento automático aproximadamente cada 15 minutos; puedes cerrar la página.");
+  else msg("Ya existen "+result.existing+" ideas Premium para este producto. No se duplican: se procesarán desde la cola. Para otra versión utiliza «Regenerar con diseño universal».");
   await refreshPremium(true);
  }catch(e){msg("Premium: "+e.message,true)}
  finally{button.disabled=false}
@@ -348,19 +349,36 @@ async function refreshPremium(silent=false){
   if(!result.ok)throw Error(result.error||"No disponible.");
   const previews=Array.isArray(result.previews)?result.previews:[];
   holder.replaceChildren();
-  if(!previews.length){state.textContent="Sin propuestas aún. La generación requiere configurar Cloudflare Workers AI Free o Hugging Face ZeroGPU.";return}
-  state.textContent=previews.filter(p=>p.status==="ready").length+" de "+previews.length+" propuestas disponibles. Publicación bloqueada.";
+  const queueButton=$("premiumqueue");
+  if(!previews.length){
+   queueButton.disabled=false;queueButton.textContent="Preparar hasta 3 ideas Premium";
+   state.textContent="Sin propuestas todavía. Al prepararlas se enviarán a la cola privada; puedes cerrar esta página.";
+   return;
+  }
+  queueButton.disabled=previews.length>=3;
+  queueButton.textContent=previews.length>=3?"3 ideas ya preparadas":"Preparar hasta 3 ideas Premium";
+  const readyCount=previews.filter(p=>p.status==="ready").length;
+  const queuedCount=previews.filter(p=>p.status==="queued").length;
+  const processingCount=previews.filter(p=>p.status==="processing").length;
+  state.textContent=readyCount+" listas · "+queuedCount+" en cola · "+processingCount+
+   " generando. GitHub revisa la cola aproximadamente cada 15 minutos (puede retrasarse). Puedes cerrar la página. Nada se publica automáticamente.";
   for(const p of previews){
    const card=text("article",null,"card"),body=text("div",null,"card-body");
    const label=["Portada A","Portada B","Escena editorial"][Number(p.variant)-1]||"Propuesta";
-   body.append(text("h3",label),text("small",p.status==="ready"?"Lista para inspección":p.status==="processing"?"Generando con IA":p.status==="queued"?"En cola / esperando motor IA gratuito":"Revisión necesaria"));
+   const retryAfter=p.render_after&&Date.parse(p.render_after)>Date.now()
+      ? " · Reintento no antes de "+new Date(p.render_after).toLocaleString("es-EC",{dateStyle:"short",timeStyle:"short"}) : "";
+   const displayStatus=p.status==="ready"?"Lista para inspección":
+     p.status==="processing"?"Generando con IA":
+     p.status==="queued"?"En cola para el próximo ciclo automático"+retryAfter:
+     p.status==="error"?"Error: puedes solicitar una nueva versión":"Revisión necesaria";
+   body.append(text("h3",label),text("small",displayStatus));
    const statusLabel=p.reference_mode==="conceptual"?"IMAGEN ILUSTRATIVA — modelo no verificado":
     p.reference_mode==="low_resolution_reference"?"Referencia pequeña: revisar componentes y proporciones":
     p.reference_mode==="legacy_overlay"?"Diseño anterior con fotografía pegada; regenera para cambiarlo":
     p.reference_mode==="promotional_reference"?"Referencia promocional: revisión obligatoria":
     p.reference_mode==="catalog_reference"?"Referencia de catálogo: revisión de fidelidad obligatoria":
     "Propuesta sin verificar; no publicar sin inspección";
-   body.append(text("small",statusLabel,"muted"));
+   body.append(text("small",p.status==="ready"?statusLabel:"Referencia y fidelidad por evaluar cuando se genere la imagen.","muted"));
    if(p.poster_path&&p.status==="ready"){
     const media=text("div",null,"card-media");media.style.height="280px";
     const img=document.createElement("img");img.alt=label+" de prueba";media.append(img);card.append(media);
@@ -470,6 +488,11 @@ $("autoqueue").onchange=toggleAutoConfig;$("search").oninput=renderJobs;$("filte
 $("savecaption").onclick=saveCaption;$("copycaption").onclick=()=>copy($("captiondraft").value);$("preparemac").onclick=prepareMac;$("autogenerate").onclick=queueCloud;$("refreshcloud").onclick=()=>refreshCloud(false);$("rebuildcloud").onclick=rebuildCloud;$("historybutton").onclick=showHistory;
 $("syncimages").onclick=()=>checkIncoming(false);
 $("premiumqueue").onclick=queuePremium;$("premiumrefresh").onclick=()=>refreshPremium(false);
+setInterval(()=>{
+ if(session && job && document.visibilityState==="visible" && !$("detail").classList.contains("hide")){
+  refreshPremium(true).catch(()=>{});
+ }
+},60000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&job.status==="generating")refreshCloud(true)},15000);
 setInterval(()=>{if(session&&job&&!$("detail").classList.contains("hide")&&["awaiting_images","review"].includes(job.status)&&slides.some(s=>s.status==="pending"&&s.image_path&&s.image_path.includes("/bridge/")))checkIncoming(true)},15000);
 $("approve").onclick=()=>{if(slides.length>=4&&slides.slice(0,4).every(x=>x.status==="approved"))updateJob("approved")};
