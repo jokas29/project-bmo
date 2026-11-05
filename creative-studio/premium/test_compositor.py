@@ -1,10 +1,11 @@
 """Offline visual invariants for the single-canvas DropEC editorial style."""
 import unittest
 from PIL import Image, ImageDraw
+from pathlib import Path
 
 from compositor import (
     W, H, HERO_TOP, HERO_BOTTOM, STYLES, _full_scene_geometry,
-    _background, build_poster, jpeg_bytes, source_quality
+    _background, _price_font, fit_lines, build_poster, jpeg_bytes, source_quality
 )
 
 
@@ -47,7 +48,13 @@ class PremiumUnifiedCanvasTests(unittest.TestCase):
                 x2,y2=int(size[0]*.82),int(size[1]*.82)
                 d.rectangle((x1,y1,x2,y2),fill=(200,59,80))
                 ad=build_poster(scene,self.reference,"Herramienta portátil",44,2)
-                x,y,w,h=_full_scene_geometry(scene,HERO_TOP,HERO_BOTTOM)
+                # Use the SAME title-dependent hero start as the real
+                # compositor. The image starts lower when a longer name wraps.
+                draw=ImageDraw.Draw(Image.new("RGBA",(W,H)))
+                lines,font=fit_lines("Herramienta portátil",945,draw,82)
+                title_bottom=143+len(lines)*int(getattr(font,"size",62)*1.17)
+                hero_top=max(HERO_TOP,title_bottom+20)
+                x,y,w,h=_full_scene_geometry(scene,hero_top,HERO_BOTTOM)
                 self.assertGreaterEqual(x,0)
                 self.assertLessEqual(x+w,W)
                 self.assertGreaterEqual(y,HERO_TOP)
@@ -70,6 +77,23 @@ class PremiumUnifiedCanvasTests(unittest.TestCase):
             with self.subTest(product=product):
                 ad=build_poster(self.scene,self.reference,product,None,3)
                 self.assertEqual(ad.size,(W,H))
+
+    def test_no_cropped_ghost_mark_or_muddy_background_overlays(self):
+        source=Path(__file__).with_name("compositor.py").read_text()
+        self.assertNotIn('ghost.text(',source)
+        self.assertNotIn('ghost_font=load_font(162)',source)
+        self.assertIn('alpha = 28 if style["pale"] else 40',source)
+        self.assertNotIn('tint_strength = 192 if style["pale"] else 157',source)
+
+    def test_large_readable_price_and_safe_full_product_layout(self):
+        canvas=Image.new("RGB",(W,H))
+        draw=ImageDraw.Draw(canvas)
+        label,font=_price_font(draw,25.00)
+        self.assertEqual(label,"$25.00")
+        self.assertGreaterEqual(getattr(font,"size",0),70)
+        x,y,w,h=_full_scene_geometry(self.scene,HERO_TOP,HERO_BOTTOM)
+        self.assertGreaterEqual(w,800)
+        self.assertGreaterEqual(h,800)
 
     def test_palette_and_alignment_concepts_are_not_identical(self):
         a=_background(self.scene,1).convert("RGB")

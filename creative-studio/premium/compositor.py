@@ -23,16 +23,16 @@ FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 # These are bounds for content placement, not boundaries between panels.
-HERO_TOP, HERO_BOTTOM = 295, 1200
+HERO_TOP, HERO_BOTTOM = 310, 1190
 MODES = frozenset(("catalog_reference", "promotional_reference",
                    "low_resolution_reference", "conceptual", "legacy_overlay"))
 
 # Every variant works for every product. Different palette/alignment gives each
 # concept a considered editorial identity instead of recoloring a fixed card.
 STYLES = {
-    1: dict(tint=(27, 8, 49), pale=False, align="left", halo=(136, 80, 207)),
-    2: dict(tint=(53, 12, 78), pale=False, align="right", halo=(165, 70, 173)),
-    3: dict(tint=(239, 236, 233), pale=True, align="left", halo=(155, 117, 189)),
+    1: dict(tint=(30, 9, 60), pale=False, align="left"),
+    2: dict(tint=(33, 10, 48), pale=False, align="left"),
+    3: dict(tint=(236, 229, 225), pale=True, align="left"),
 }
 
 
@@ -87,7 +87,7 @@ def _full_scene_geometry(scene: Image.Image, top: int, bottom: int
     height = bottom - top
     if height < 630:
         raise ValueError("title leaves insufficient height for complete product")
-    ratio = min((W - 64) / scene.width, height / scene.height)
+    ratio = min((W - 24) / scene.width, height / scene.height)
     width = max(1, int(round(scene.width * ratio)))
     scaled_height = max(1, int(round(scene.height * ratio)))
     return ((W - width)//2, top + (height - scaled_height)//2,
@@ -95,28 +95,33 @@ def _full_scene_geometry(scene: Image.Image, top: int, bottom: int
 
 
 def _background(scene: Image.Image, variant: int) -> Image.Image:
-    """One continuous full-canvas background derived from the exact FLUX scene."""
+    """A smooth full-frame extension, avoiding the gray fog of the old design.
+
+    Use real colors from the generation: tint only lightly in the middle,
+    and blend gradients progressively where text must remain legible.
+    """
     style = STYLES[variant]
-    # Blurred continuation provides consistent scenery at top, sides & bottom.
-    scene = ImageOps.exif_transpose(scene).convert("RGB")
-    full = ImageOps.fit(scene, (W, H),
-                        method=Image.Resampling.LANCZOS).filter(
-                            ImageFilter.GaussianBlur(56)).convert("RGBA")
-    tint_strength = 192 if style["pale"] else 157
+    source = ImageOps.exif_transpose(scene).convert("RGB")
+    full = ImageOps.fit(source, (W,H), method=Image.Resampling.LANCZOS)
+    full = full.filter(ImageFilter.GaussianBlur(38)).convert("RGBA")
+    # Keep the source palette recognizable; old overlay at alpha 157-192
+    # washed the advertising photograph into a large muddy rectangle.
+    alpha = 28 if style["pale"] else 40
     full = Image.alpha_composite(
-        full, Image.new("RGBA", (W, H), (*style["tint"], tint_strength))
+        full, Image.new("RGBA",(W,H),(*style["tint"],alpha))
     )
-    wash = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    stroke = ImageDraw.Draw(wash, "RGBA")
-    shade = (248, 244, 240) if style["pale"] else (11, 3, 28)
-    # Smooth shading across the canvas, not visible header/footer bands.
+    wash=Image.new("RGBA",(W,H),(0,0,0,0))
+    d=ImageDraw.Draw(wash,"RGBA")
+    shade=(249,245,243) if style["pale"] else (13,4,30)
     for y in range(H):
-        top = max(0.0, (600-y)/600)
-        bottom = max(0.0, (y-965)/(H-965))
-        opacity = int(126*top*top + 155*bottom*bottom)
+        # The two smooth vignettes fade naturally through the entire
+        # background. They are NOT opaque header and footer sections.
+        top=max(0.0, (630-y)/630)
+        bottom=max(0.0, (y-900)/(H-900))
+        opacity=min(232,int(215*top*top + 207*bottom*bottom))
         if opacity:
-            stroke.line((0, y, W, y), fill=(*shade, min(235, opacity)))
-    return Image.alpha_composite(full, wash)
+            d.line((0,y,W,y),fill=(*shade,opacity))
+    return Image.alpha_composite(full,wash)
 
 
 def _feathered_foreground(scene: Image.Image, poster: Image.Image,
@@ -130,12 +135,11 @@ def _feathered_foreground(scene: Image.Image, poster: Image.Image,
     source = ImageOps.exif_transpose(scene).convert("RGB")
     x, y, w, h = _full_scene_geometry(source, top, bottom)
     foreground = source.resize((w, h), Image.Resampling.LANCZOS).convert("RGBA")
-    margin = max(30, min(w, h)//13)
+    margin = max(24, min(w, h)//23)
     mask = Image.new("L", (w,h), 0)
     d = ImageDraw.Draw(mask)
-    d.rounded_rectangle((margin,margin,w-margin-1,h-margin-1),
-                        radius=min(100,margin),fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(max(18,margin//2)))
+    d.rectangle((margin,margin,w-margin-1,h-margin-1),fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(max(16,margin//2)))
     # The foreground interior remains 100% real model output.
     poster.paste(foreground, (x,y), mask)
     return x, y, w, h
@@ -152,7 +156,7 @@ def _text(draw: ImageDraw.ImageDraw, xy: tuple[int,int], text: str,
 
 def _price_font(draw: ImageDraw.ImageDraw, value: float) -> tuple[str,ImageFont.ImageFont]:
     title=f"${value:,.2f}"
-    for size in range(66,31,-2):
+    for size in range(80,37,-2):
         font=load_font(size)
         if draw.textbbox((0,0),title,font=font)[2] <= 875:
             return title,font
@@ -179,9 +183,9 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     style=STYLES[variant]
     poster=_background(scene,variant)
     draw=ImageDraw.Draw(poster,"RGBA")
-    title_lines,font=fit_lines(product_name,940,draw,76 if variant==1 else 71)
+    title_lines,font=fit_lines(product_name,945,draw,82 if variant!=3 else 77)
     spacing=int(getattr(font,"size",62)*1.17)
-    title_y=158 if variant!=3 else 167
+    title_y=143 if variant!=3 else 153
     title_bottom=title_y+len(title_lines)*spacing
     hero_top=max(HERO_TOP,title_bottom+20)
     # The hero and its 12%-clearance foreground must remain above all pricing.
@@ -191,20 +195,16 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     shadow=(248,248,248) if style["pale"] else (8,3,24)
     accent=(91,38,148) if style["pale"] else LIME
 
-    # Typography behind the hero evokes editorial product campaigns. It is
-    # deliberately occluded by the blended foreground, never pasted over SKU.
-    ghost=ImageDraw.Draw(poster,"RGBA")
-    ghost_font=load_font(162)
-    ghost_color=(77,43,114) if style["pale"] else WHITE
-    ghost.text((36,610),"DropEC",font=ghost_font,fill=(*ghost_color,35))
+    # A product must be the single hero. Do not add giant cropped watermark
+    # letters behind it: they create stray 'Dr' shapes and destroy hierarchy.
     _feathered_foreground(scene,poster,hero_top,HERO_BOTTOM)
     draw=ImageDraw.Draw(poster,"RGBA")
     # Brand/wordmark floats in the top negative space, no pill or header stripe.
-    _text(draw,(62,41),"DropEC",load_font(40),accent,shadow)
+    _text(draw,(62,35),"DropEC",load_font(49),accent,shadow)
     small_label="TIENDA ONLINE"
-    label_font=load_font(17,False)
+    label_font=load_font(20,False)
     label_width=draw.textbbox((0,0),small_label,font=label_font)[2]
-    _text(draw,(W-label_width-62,62),small_label,label_font,text_color,shadow)
+    _text(draw,(W-label_width-62,56),small_label,label_font,text_color,shadow)
 
     for index,line in enumerate(title_lines):
         width=draw.textbbox((0,0),line,font=font)[2]
@@ -214,27 +214,27 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
 
     # Price and CTA share the SAME continuous canvas. No footer card, border,
     # opaque rectangle or line divides text from image.
-    note_font=load_font(19,False)
+    note_font=load_font(22,False)
     price_label="PRECIO DE CATÁLOGO" if price is not None else "CONSULTA DISPONIBILIDAD"
     right=style["align"]=="right"
     def x_for(t: str,f: ImageFont.ImageFont):
         tw=draw.textbbox((0,0),t,font=f)[2]
         return W-66-tw if right else 66
-    _text(draw,(x_for(price_label,note_font),1206),price_label,note_font,text_color,shadow)
+    _text(draw,(x_for(price_label,note_font),1198),price_label,note_font,text_color,shadow)
     if price is None:
         amount,amount_font="Solicita información",load_font(36)
     else:
         amount,amount_font=_price_font(draw,price)
-    _text(draw,(x_for(amount,amount_font),1233),amount,amount_font,accent,shadow)
+    _text(draw,(x_for(amount,amount_font),1223),amount,amount_font,accent,shadow)
     cta="Solicita tu cotización  ·  Envío por confirmar"
-    cta_font=load_font(19,False)
-    _text(draw,(x_for(cta,cta_font),1301),cta,cta_font,text_color,shadow)
+    cta_font=load_font(22,False)
+    _text(draw,(x_for(cta,cta_font),1306),cta,cta_font,text_color,shadow)
 
     if reference_mode=="conceptual" or original is None:
         marker="IMAGEN ILUSTRATIVA · MODELO NO VERIFICADO"
         marker_font=load_font(15,False)
         # Keep the notice visible but non-obstructing; position in price margin.
-        _text(draw,(x_for(marker,marker_font),1182),marker,marker_font,text_color,shadow)
+        _text(draw,(x_for(marker,marker_font),1161),marker,marker_font,text_color,shadow)
     return poster.convert("RGB")
 
 

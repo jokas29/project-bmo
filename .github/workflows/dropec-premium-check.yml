@@ -71,7 +71,8 @@ jobs:
           }
           const brief = fs.readFileSync('creative-studio/premium/creative_brief.py','utf8')
           if (!brief.includes('ENTIRE PHYSICAL PRODUCT') ||
-              !brief.includes('AT LEAST 12% background clearance') ||
+              !brief.includes('AT LEAST 6% background clearance') ||
+              !brief.includes('80-85% of image height') ||
               !brief.includes('NO split layout')) {
             throw new Error('Creative prompt no longer guarantees complete requested subject framing')
           }
@@ -79,6 +80,8 @@ jobs:
               !compositor.includes('_feathered_foreground') ||
               !compositor.includes('_background') ||
               !compositor.includes('ImageFilter.GaussianBlur') ||
+              compositor.includes('ghost.text(') ||
+              compositor.includes('ghost_font=load_font(162)') ||
               compositor.includes('PRICE_PANEL_TOP') ||
               compositor.includes('draw.rounded_rectangle((50, PRICE_PANEL_TOP')) {
             throw new Error('Editorial style must be a unified canvas, without hard header/image/footer bands')

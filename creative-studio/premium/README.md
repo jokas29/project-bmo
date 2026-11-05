@@ -118,6 +118,14 @@ images, or hard top/bottom sections. The original source photo is used only
 to guide model inference. Prices and disclaimers remain faithful to known
 catalogue data; no unsupported technical claims are generated.
 
+**Visual quality regression correction:** We removed the giant, partly
+occluded DropEC text watermark (which could leave a cropped "Dr" at the
+left), reduced the heavy color wash on the generated scene, restored a
+prominent consistent headline and increased the price type. All variants
+request the complete product at roughly 80-85% scene height while retaining
+a 6% safety margin around physical edges. This is a prompt requirement, not
+a guaranteed product segmentation or framing result. Inspect each preview.
+
 `test_compositor.py` checks the continuity of gradients where old hard
 dividers used to appear, the intact inner 76% product-safe region for
 square/wide/tall scene ratios, concept version differences, pricing/variant
