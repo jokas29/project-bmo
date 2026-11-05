@@ -84,7 +84,8 @@ class CoverOnlyTests(unittest.TestCase):
             with self.subTest(slide=number):
                 result=build_carousel_slide(
                     self.scene,self.reference,"Máquina de ajo eléctrica",
-                    25,number,subject=self.cutout)
+                    25,number,subject=self.cutout,
+                    benefits=["APOYA LA PREPARACIÓN EN COCINA","USO CON INGREDIENTES","ACCESORIO DE COCINA"] if number==3 else None)
                 self.assertEqual(result.size,(W,H))
                 self.assertTrue(jpeg_bytes(result).startswith(bytes((255,216,255))))
                 outputs.append(result.tobytes())
@@ -101,12 +102,13 @@ class CoverOnlyTests(unittest.TestCase):
                 headline="¿Picar ajo te toma tiempo?",subject=self.cutout)
             tips=build_carousel_slide(
                 context,self.reference,"Máquina de ajo eléctrica",25,3,
-                headline="Ideas para preparar ingredientes",subject=self.cutout)
+                headline="3 beneficios del producto",subject=self.cutout,
+                benefits=["PARA PREPARAR INGREDIENTES","USO EN LA COCINA","PRODUCTO DE PREPARACIÓN"])
         self.assertGreater(usage.getpixel((W//2,535))[1],120)
         self.assertGreater(tips.getpixel((W//2,430))[1],120)
         self.assertNotEqual(usage.tobytes(),tips.tobytes())
 
-    def test_storytelling_text_tips_and_price_are_audited(self):
+    def test_storytelling_text_benefits_and_price_are_audited(self):
         original=ImageDraw.ImageDraw.text
         outputs={}
         for number in (2,3,4):
@@ -121,15 +123,15 @@ class CoverOnlyTests(unittest.TestCase):
                         25,number,subject=self.cutout,
                         headline=("¿Picar ajo te toma tiempo?" if number==2 else
                                   "Prepara ingredientes con tu picadora"),
-                        tips=["PELA EL AJO","COLÓCALO EN EL RECIPIENTE",
-                              "LIMPIA SEGÚN EL MANUAL"] if number==3 else None)
+                        benefits=["APOYA LA PREPARACIÓN DEL AJO","PARA RECETAS EN CASA",
+                                  "IDEAL PARA INGREDIENTES"] if number==3 else None)
                 outputs[number]=painted
         self.assertIn("AJO", " ".join(outputs[2]))
         self.assertNotIn("$25.00",outputs[2])
         self.assertIn("01",outputs[3])
         self.assertIn("02",outputs[3])
         self.assertIn("03",outputs[3])
-        self.assertIn("LIMPIA", " ".join(outputs[3]))
+        self.assertIn("PREPARACIÓN", " ".join(outputs[3]))
         self.assertNotIn("$25.00",outputs[3])
         self.assertIn("$25.00",outputs[4])
         self.assertIn("ESCRÍBENOS POR MENSAJE",outputs[4])
@@ -147,11 +149,15 @@ class CoverOnlyTests(unittest.TestCase):
         self.assertIn("PRECIO POR CONSULTAR",without)
         self.assertNotIn("$25.00",without)
 
-    def test_interiors_reject_invented_price_and_unsupported_tip_fields(self):
-        from compositor import _clean_tips
+    def test_interiors_require_sourced_benefits_and_reject_price_abuse(self):
+        from compositor import _clean_benefits
         with self.assertRaises(ValueError):
-            _clean_tips("Máquina de ajo eléctrica",["AHORRA 90%","MÁS RÁPIDO","FÁCIL"])
-        self.assertEqual(len(_clean_tips("Artículo genérico",None)),3)
+            _clean_benefits(["AHORRA 90%","MÁS RÁPIDO","FÁCIL"])
+        with self.assertRaises(ValueError):
+            _clean_benefits(None)
+        with self.assertRaises(ValueError):
+            build_carousel_slide(self.scene,self.reference,"Producto genérico",20,3,subject=self.cutout)
+        self.assertEqual(len(_clean_benefits(["MANGO DE USO CÓMODO","BASE GIRATORIA SEGÚN FICHA","APOYA EL MOVIMIENTO DE MUEBLES"])),3)
         for amount in (0,-1,float("inf"),float("nan")):
             with self.assertRaises(ValueError):
                 build_carousel_slide(
