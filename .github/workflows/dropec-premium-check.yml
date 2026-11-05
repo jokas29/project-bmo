@@ -83,8 +83,11 @@ jobs:
           const theme = JSON.parse(fs.readFileSync('creative-studio/premium/editorial_theme.json','utf8'))
           if (theme.formato.ancho!==736 || theme.formato.alto!==1104 ||
               theme.formato.proporcion!=='2:3' ||
-              theme.estilo.fondo!=='#F5F3EF' ||
-              theme.estilo.colores.fondo_central!=='#AAA6A0' ||
+              theme.estilo.fondo!=='#150A2A' ||
+              theme.estilo.colores.fondo_central!=='#421C73' ||
+              theme.estilo.colores.acento_lima!=='#D2FF44' ||
+              theme.composicion.ambiente.variantes.length!==3 ||
+              theme.composicion.panel_central.habilitado!==false ||
               theme.estilo.tipografia.familia!=='Anton' ||
               JSON.stringify(theme.textos.permitidos_en_portada)!=='["nombre_producto"]' ||
               !theme.instrucciones.verificacion_humana_antes_de_publicar ||
@@ -104,6 +107,8 @@ jobs:
             throw new Error('AI must output complete isolated product, not a backdrop or branded ad')
           }
           if (!compositor.includes('_editorial_background') ||
+              !compositor.includes('GaussianBlur(96)') ||
+              !compositor.includes('halo=rgb(spec["halo"])') ||
               !compositor.includes('_headline_layout') ||
               !compositor.includes('_extract_subject') ||
               !compositor.includes('_fit_product') ||
