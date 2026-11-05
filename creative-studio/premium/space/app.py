@@ -28,7 +28,7 @@ def generate(image: Image.Image | None, prompt: str, seed: int) -> Image.Image:
             **args,
             prompt=prompt,
             width=896,
-            height=1120,
+            height=896,
             num_inference_steps=4,
             guidance_scale=1.0,
             generator=torch.Generator(device="cuda").manual_seed(int(seed) % (2**32)),
