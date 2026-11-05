@@ -30,6 +30,19 @@ jobs:
           python -m pip install --disable-pip-version-check Pillow==11.3.0 requests==2.32.5
           python -m unittest discover -s creative-studio/premium -p 'test_*.py' -v
           python -m py_compile creative-studio/premium/runner.py creative-studio/premium/space/app.py
+      - name: Verify free CPU segmentation model loads
+        run: |
+          python -m pip install --disable-pip-version-check --no-input 'rembg[cpu]==2.0.86'
+          python - <<'PY'
+          from rembg import new_session,remove
+          from PIL import Image
+          session=new_session("u2netp")
+          sample=Image.new("RGB",(512,512),(235,235,235))
+          result=remove(sample,session=session)
+          assert result.size==(512,512)
+          assert result.mode=="RGBA"
+          print("Open-source CPU matting model loaded; no paid API used")
+          PY
       - name: Check staged UI JavaScript parsing and owner controls
         run: |
           node <<'JS'
