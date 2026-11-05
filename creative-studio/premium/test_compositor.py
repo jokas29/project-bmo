@@ -1,142 +1,126 @@
-"""Offline regression tests for DropEC's JSON-directed commercial advertising."""
+"""Offline regression checks for premium asymmetrical 2:3 editorial ads."""
 import unittest
 from unittest.mock import patch
 from PIL import Image, ImageDraw
 
 from compositor import (
-    W,H,WHITE,PRIMARY,LIME,THEME,
-    SubjectExtractionError,_organic_shapes,_check_subject,_fit_product,
-    build_poster,jpeg_bytes,source_quality
+    W,H,BG,INK,PANEL,THEME,load_font,_editorial_background,
+    _headline_layout,_fit_product,_check_subject,SubjectExtractionError,
+    build_poster,jpeg_bytes
 )
 
-def synthetic_cutout(w=1024,h=1024,rect=(240,145,795,880),rgba=(222,35,40,255)):
-    im=Image.new("RGBA",(w,h),(255,255,255,0))
-    d=ImageDraw.Draw(im)
-    d.rounded_rectangle(rect,radius=65,fill=rgba)
-    return im
+def product_cutout(rect=(200,120,820,886),size=(1024,1024)):
+    image=Image.new("RGBA",size,(255,255,255,0))
+    ImageDraw.Draw(image).rounded_rectangle(rect,radius=60,fill=(210,37,48,255))
+    return image
 
-class DropECJSONArtworkTests(unittest.TestCase):
+class EditorialPosterTests(unittest.TestCase):
     def setUp(self):
-        self.photo=Image.new("RGB",(1024,1024),(232,232,232))
-        self.source=Image.new("RGB",(800,800),(80,90,120))
-        self.cutout=synthetic_cutout()
+        self.scene=Image.new("RGB",(1024,1024),(225,225,225))
+        self.orig=Image.new("RGB",(800,800),(31,42,73))
+        self.subject=product_cutout()
 
-    def poster(self,variant=1,name="Máquina de ajo eléctrica",photo=True,price=25):
+    def poster(self,variant=1,title="Máquina de ajo eléctrica",price=25,
+               with_photo=True):
         return build_poster(
-            self.photo,self.source if photo else None,name,price,variant,
-            reference_mode="catalog_reference" if photo else "conceptual",
-            subject=self.cutout
-        )
+            self.scene,self.orig if with_photo else None,title,price,variant,
+            reference_mode="catalog_reference" if with_photo else "conceptual",
+            subject=self.subject)
 
-    def test_user_palette_and_format_are_exactly_the_json(self):
-        self.assertEqual((W,H),(1080,1350))
-        self.assertEqual(WHITE,(255,255,255))
-        self.assertEqual(PRIMARY,(41,52,10))
-        self.assertEqual(LIME,(173,229,0))
-        self.assertTrue(THEME["instrucciones"]["producto_dinamico"])
+    def test_json_dimensions_colors_and_typographic_weights(self):
+        self.assertEqual((W,H),(736,1104))
+        self.assertEqual(BG,(245,243,239))
+        self.assertEqual(PANEL,(170,166,160))
+        self.assertEqual(INK,(17,17,17))
+        self.assertEqual(THEME["composicion"]["panel_central"]["ancho"],"28%")
+        self.assertTrue(THEME["instrucciones"]["mantener_tipografia"])
+        self.assertIn("Lato",THEME["estilo"]["tipografia"]["familia"])
+        self.assertGreater(load_font(70,"black").size,60)
 
-    def test_organic_shapes_are_behind_the_product_not_three_stacked_cards(self):
-        for v in (1,2,3):
-            with self.subTest(v=v):
-                base=_organic_shapes(v)
-                self.assertEqual(base.getpixel((28,60))[:3],PRIMARY)
-                self.assertEqual(base.getpixel((40,805))[:3],WHITE)
-                self.assertEqual(base.getpixel((1038,1290))[:3],LIME)
-                poster=self.poster(v)
-                self.assertEqual(poster.size,(W,H))
-                self.assertTrue(jpeg_bytes(poster).startswith(bytes((255,216,255))))
+    def test_panel_is_centered_vertical_architecture_not_photo_rectangle(self):
+        for variant in (1,2,3):
+            with self.subTest(variant=variant):
+                bg=_editorial_background(variant)
+                self.assertEqual(bg.getpixel((4,400))[:3],BG)
+                self.assertEqual(bg.getpixel((W//2,400))[:3],PANEL)
+                self.assertEqual(bg.getpixel((4,1030))[:3],BG)
+                self.assertEqual(bg.getpixel((W//2,1060))[:3],BG)
 
-    def test_actual_foreground_silhouette_overlaps_brand_shapes(self):
+    def test_three_variants_render_and_preserve_foreground_color(self):
         for variant in (1,2,3):
             with self.subTest(variant=variant):
                 poster=self.poster(variant)
-                product,x,y=_fit_product(_check_subject(self.cutout),variant)
-                cx=x+product.width//2
-                cy=y+product.height//2
-                # Bright red synthetic product must be visible above background.
-                sample=poster.getpixel((cx,cy))
-                self.assertGreater(sample[0],190)
-                self.assertLess(sample[1],85)
-                self.assertGreater(x,390)
-                self.assertGreater(y,370)
-                self.assertLess(x+product.width,W-14)
-                self.assertLess(y+product.height,1166)
+                self.assertEqual(poster.size,(W,H))
+                self.assertTrue(jpeg_bytes(poster).startswith(b"\\xff\\xd8\\xff"))
+                d=ImageDraw.Draw(Image.new("RGB",(W,H)))
+                lines,font,line_h=_headline_layout("Máquina de ajo eléctrica",d)
+                _,x,y=_fit_product(_check_subject(self.subject),variant,137+len(lines)*line_h)
+                pw,ph=_[0],_[1]
+                r,g,b=poster.getpixel((x+pw//2,y+ph//2))
+                self.assertGreater(r,180)
+                self.assertLess(g,95)
+                self.assertGreater(x,150)
+                self.assertLess(x+pw,W-10)
+                self.assertGreater(y,330)
+                self.assertLess(y+ph,962)
 
-    def test_no_more_rectangular_image_or_wash_of_model_background(self):
-        poster=self.poster()
-        # The original flat gray generation background is removed, not pasted
-        # as a square white/gray scene inside the brand design.
-        self.assertEqual(_organic_shapes(1).getpixel((40,805)),(255,255,255,255))
-        self.assertEqual(poster.getpixel((40,805)),WHITE)
-        self.assertEqual(poster.getpixel((1038,1290)),LIME)
-        self.assertNotEqual(poster.getpixel((745,775)),self.source.getpixel((400,400)))
+    def test_full_silhouette_for_wide_and_tall_items(self):
+        d=ImageDraw.Draw(Image.new("RGB",(W,H)))
+        lines,font,line_h=_headline_layout("Juego de herramientas para mover muebles",d)
+        title_end=137+len(lines)*line_h
+        for bbox in [(90,370,935,660),(380,60,650,960),(180,160,850,870)]:
+            with self.subTest(bbox=bbox):
+                obj=_check_subject(product_cutout(bbox))
+                im,x,y=_fit_product(obj,1,title_end)
+                self.assertGreater(x,150)
+                self.assertGreater(y,title_end+17)
+                self.assertLess(x+im.width,W-10)
+                self.assertLessEqual(y+im.height,961)
 
-    def test_no_verified_photo_still_produces_an_illustrative_private_ad(self):
-        poster=self.poster(2,photo=False,price=None,name="Producto sin imagen")
+    def test_long_names_use_compact_editorial_type_without_clipping(self):
+        for name in ("Juego de herramientas para mover muebles",
+                     "Auriculares inalámbricos con estuche compacto",
+                     "Organizador multifuncional de artículos para el hogar"):
+            with self.subTest(name=name):
+                self.assertEqual(self.poster(title=name).size,(W,H))
+
+    def test_no_reference_has_label_and_is_not_published(self):
+        poster=self.poster(with_photo=False,price=None)
         self.assertEqual(poster.size,(W,H))
         self.assertGreater(len(jpeg_bytes(poster)),15000)
+        self.assertFalse(THEME["instrucciones"]["publicacion_automatica"])
 
-    def test_wide_and_tall_products_fit_without_cropping(self):
-        for dims,rect in [
-            ((1024,1024),(180,350,870,640)),
-            ((1024,1024),(365,75,670,950)),
-            ((1024,1024),(205,180,790,845)),
-        ]:
-            with self.subTest(rect=rect):
-                subject=synthetic_cutout(*dims,rect=rect)
-                clean=_check_subject(subject)
-                img,x,y=_fit_product(clean,2)
-                self.assertGreaterEqual(x,393)
-                self.assertLessEqual(x+img.width,W-15)
-                self.assertGreaterEqual(y,375)
-                self.assertLessEqual(y+img.height,1165)
-
-    def test_source_reference_is_never_pasted_on_the_ad(self):
-        poster=self.poster()
-        self.assertNotEqual(poster.getpixel((745,775)),self.source.getpixel((400,400)))
-
-    def test_incomplete_or_ambiguous_segmentations_are_rejected(self):
-        with self.assertRaises(SubjectExtractionError):
-            _check_subject(Image.new("RGBA",(1024,1024),(255,255,255,0)))
-        with self.assertRaises(SubjectExtractionError):
-            _check_subject(Image.new("RGBA",(1024,1024),(255,255,255,255)))
-        edge=synthetic_cutout(rect=(0,140,740,900))
-        with self.assertRaises(SubjectExtractionError):
-            _check_subject(edge)
-        tiny=synthetic_cutout(rect=(480,482,515,513))
-        with self.assertRaises(SubjectExtractionError):
-            _check_subject(tiny)
-
-    def test_fail_closed_if_open_source_matting_is_unavailable(self):
-        with patch("compositor._extract_subject",side_effect=SubjectExtractionError("missing")):
-            with self.assertRaises(SubjectExtractionError):
-                build_poster(self.photo,self.source,"Producto",25,1)
-
-    def test_no_fabricated_contact_or_unverified_copy(self):
+    def test_no_fake_iphone_features_contact_or_phone_colors(self):
         self.assertIsNone(THEME["textos"]["contacto"]["telefono"])
         self.assertIsNone(THEME["textos"]["contacto"]["direccion"])
-        self.assertEqual(THEME["textos"]["boton"]["contenido"],"SOLICITA TU COTIZACIÓN")
+        self.assertEqual(THEME["caracteristicas"]["elementos"],[])
+        self.assertEqual(THEME["variantes_color"]["colores"],[])
+        with open(__import__("pathlib").Path(__file__).with_name("compositor.py"),encoding="utf-8") as fi:
+            source=fi.read()
+        self.assertNotIn("A20 Pro",source)
+        self.assertNotIn("Pro Camera",source)
+        self.assertNotIn("iPhone",source)
 
-    def test_generic_categories_and_long_titles(self):
-        for name in ("Juego de herramientas para mover muebles",
-                     "Audífonos inalámbricos portátiles",
-                     "Zapatos deportivos de fabricación artesanal",
-                     "Organizador para artículos de oficina"):
-            with self.subTest(name=name):
-                ad=self.poster(name=name)
-                self.assertEqual(ad.size,(W,H))
+    def test_cutout_cannot_be_missing_touch_outer_edges_or_ambiguous(self):
+        for sample in (Image.new("RGBA",(1024,1024),(0,0,0,0)),
+                       Image.new("RGBA",(1024,1024),(100,80,80,255)),
+                       product_cutout(rect=(0,120,700,900))):
+            with self.assertRaises(SubjectExtractionError):
+                _check_subject(sample)
 
-    def test_invalid_price_title_or_reference_mode_cannot_render(self):
-        for price in (-1,0,float("nan"),float("inf")):
+    def test_failure_of_free_cpu_matting_is_not_substituted_with_old_photo(self):
+        with patch("compositor._extract_subject",side_effect=SubjectExtractionError("no model")):
+            with self.assertRaises(SubjectExtractionError):
+                build_poster(self.scene,self.orig,"Producto",25,1)
+
+    def test_prices_and_unusable_titles_fail_safely(self):
+        for price in (-1,0,float("inf"),float("nan")):
             with self.assertRaises(ValueError):
                 self.poster(price=price)
         with self.assertRaises(ValueError):
-            self.poster(name="UnTextoLarguísimoSinEspacios"*20)
+            self.poster(title="UnaPalabraImposibleDeAcomodar"*12)
         with self.assertRaises(ValueError):
-            build_poster(self.photo,self.source,"Producto",25,4,subject=self.cutout)
-        with self.assertRaises(ValueError):
-            build_poster(self.photo,self.source,"Producto",25,1,
-                         reference_mode="invented",subject=self.cutout)
+            self.poster(variant=4)
 
 if __name__=="__main__":
     unittest.main()
