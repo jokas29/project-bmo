@@ -10,6 +10,8 @@ on:
     paths:
       - '.github/workflows/dropec-premium-cloudflare-ai.yml'
       - 'creative-studio/premium/check_cloudflare_ai.py'
+      - 'creative-studio/premium/edge/index.ts'
+      - 'creative-studio/ingest/catalog-source.ts'
       - 'creative-studio/premium/cloudflare_runner.py'
       - 'creative-studio/premium/compositor.py'
       - 'creative-studio/premium/creative_brief.py'
