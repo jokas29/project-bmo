@@ -60,8 +60,9 @@ jobs:
               compositor.includes('dr.rounded_rectangle((72,panel_top')) {
             throw new Error('Premium must not paste the source advertisement over generated scene')
           }
-          if (!compositor.includes('HERO_TOP, HERO_BOTTOM') || !compositor.includes('reference_mode == "conceptual"')) {
-            throw new Error('Full-bleed layout or honest no-photo disclosure missing')
+          if (!compositor.includes('HERO_TOP, HERO_BOTTOM') ||
+              !compositor.includes('reference_mode=="conceptual"')) {
+            throw new Error('Unified scene or honest no-photo disclosure missing')
           }
           const cloud = fs.readFileSync('creative-studio/premium/cloudflare_runner.py','utf8')
           if (!cloud.includes('source_photo(preview.get("original_url"))') ||
@@ -70,13 +71,17 @@ jobs:
           }
           const brief = fs.readFileSync('creative-studio/premium/creative_brief.py','utf8')
           if (!brief.includes('ENTIRE PHYSICAL PRODUCT') ||
-              !brief.includes('AT LEAST 12% background clearance')) {
+              !brief.includes('AT LEAST 12% background clearance') ||
+              !brief.includes('NO split layout')) {
             throw new Error('Creative prompt no longer guarantees complete requested subject framing')
           }
           if (!compositor.includes('_full_scene_geometry') ||
-              !compositor.includes('PRICE_PANEL_TOP') ||
-              !compositor.includes('ImageOps.fit(source, (W, hero_h)')) {
-            throw new Error('Missing non-cropping foreground and separate footer layout')
+              !compositor.includes('_feathered_foreground') ||
+              !compositor.includes('_background') ||
+              !compositor.includes('ImageFilter.GaussianBlur') ||
+              compositor.includes('PRICE_PANEL_TOP') ||
+              compositor.includes('draw.rounded_rectangle((50, PRICE_PANEL_TOP')) {
+            throw new Error('Editorial style must be a unified canvas, without hard header/image/footer bands')
           }
           if (!free.includes("cron: '*/15 * * * *'")) {
             throw new Error('Premium backlog no longer has timely automatic checks')
