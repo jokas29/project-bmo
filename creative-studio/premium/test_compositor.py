@@ -54,8 +54,8 @@ class EditorialPosterTests(unittest.TestCase):
                 self.assertTrue(jpeg_bytes(poster).startswith(b"\\xff\\xd8\\xff"))
                 d=ImageDraw.Draw(Image.new("RGB",(W,H)))
                 lines,font,line_h=_headline_layout("Máquina de ajo eléctrica",d)
-                _,x,y=_fit_product(_check_subject(self.subject),variant,137+len(lines)*line_h)
-                pw,ph=_[0],_[1]
+                fitted,x,y=_fit_product(_check_subject(self.subject),variant,137+len(lines)*line_h)
+                pw,ph=fitted.size
                 r,g,b=poster.getpixel((x+pw//2,y+ph//2))
                 self.assertGreater(r,180)
                 self.assertLess(g,95)
