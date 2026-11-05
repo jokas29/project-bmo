@@ -538,7 +538,7 @@ async function renderSlides(){
  if(s&&s.image_path){if(s.status==="uploaded"){d.append(button("Aprobar",()=>updateSlide(s,"approved")));d.append(button("Rechazar",()=>rejectSlide(s)))}d.append(button("Descargar",async()=>{try{window.open(await signed(s.image_path,true),"_blank","noopener,noreferrer")}catch(e){msg(e.message,true)}}))}
  if(s&&s.review_notes)d.append(text("p",s.review_notes,"muted"));
  if(s&&s.render_error){
-  const premiumMessage=s.render_error==="premium_carousel_queued"?"Premium: esperando turno en la cola":s.render_error==="premium_carousel_active"?"Premium: generando imagen":s.render_error==="premium_benefits_required"?"Premium: faltan tres beneficios con fuente declarada":null;
+  const premiumMessage=s.render_error==="premium_carousel_queued"?"Premium: esperando turno en la cola":s.render_error==="premium_carousel_active"?"Premium: generando imagen":s.render_error==="premium_benefits_required"||s.render_error==="benefits_required"?"Faltan tres beneficios con fuente declarada":null;
   d.append(text("small",premiumMessage||"Generador: "+s.render_error,premiumMessage?"muted":"error"));
  }
  holder.append(d)}
