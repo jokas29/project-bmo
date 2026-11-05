@@ -24,13 +24,19 @@ review. Cloudflare's Free model quota is finite.
    kitchen, tools, technology, beauty, sport, home, or neutral studio. Unknown
    products use the neutral style, not invented attributes. No SKU-specific
    rules and no unsupported feature/benefit claims.
-6. FLUX.2 Klein 4B generates a complete full-bleed scene with central subject
-   and empty top/bottom typography margins.
-7. `compositor.py` places brand wordmark, **exact catalogue name, exact
-   supplied price**, neutral CTA and (for conceptual work) a visible
-   illustration disclaimer. It never pastes the original listing advertisement
-   or adds a white rectangle over the AI hero image. The entire center of the
-   AI image remains pixel-identical after compositing.
+6. FLUX.2 Klein 4B is prompted for a **square full-product scene** with
+   the entire silhouette visible, at least 12% background clearance on every
+   edge, the product in front of decorative props and no crop or close-up.
+   This is a generation **request**, not a computer-vision guarantee.
+7. `compositor.py` uses a **contain**, not a cover/crop transform, so the
+   ENTIRE generated scene appears in a protected foreground hero region above
+   the CTA/price card and below the title. Blurred scenery fills unused side
+   margins. No catalogue poster or original-photo panel is pasted over the
+   generated product. The layout reserves a title-dependent vertical band;
+   product pixels in the hero can never be hidden by advertising text.
+   Exact catalogue name/price, neutral CTA and conceptual disclosure live in
+   separate layout sections. FLUX could itself generate an incomplete
+   physical product; owners must reject any such image.
 8. A runner uploads the private 1080×1350 JPEG and a reference-confidence
    label into Supabase B using short-lived GitHub OIDC.
 9. The owner can compare variants, regenerate a preview without deleting
@@ -51,7 +57,14 @@ Primary: Cloudflare Workers AI, model
 `DROPEC_CF_ACCOUNT_ID`. The provider is invoked **directly from GitHub
 Actions** through REST, not inside a new Worker. The workflow
 `.github/workflows/dropec-premium-cloudflare-ai.yml` checks model access
-before claiming any staging job.
+before claiming any staging job. Once configured, GitHub automatically
+checks for waiting previews **about every 15 minutes**, subject to possible
+GitHub Actions cron delays. It claims at most **one** preview per execution
+and never makes paid overage calls. Clicking `Preparar 3 ideas Premium`
+only inserts missing preview slots; it does **not** trigger an instantaneous
+inference run or generate duplicates. To request a fresh version use
+`Regenerar con diseño universal`; the previous private JPEG is archived.
+The Studio refreshes preview status while the product page is visible.
 
 Optional secondary: Hugging Face ZeroGPU via
 `creative-studio/premium/space/`. Requires a qualified free HF account,
