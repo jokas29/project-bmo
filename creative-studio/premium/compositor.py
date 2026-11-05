@@ -136,13 +136,13 @@ def _check_subject(cutout: Image.Image) -> Image.Image:
 def _fit_product(subject: Image.Image, variant: int):
     """Large center-right foreground without intersecting the left CTA."""
     max_width=660
-    max_height=800
+    max_height=760
     scale=min(max_width/subject.width,max_height/subject.height)
     w=max(1,round(subject.width*scale))
     h=max(1,round(subject.height*scale))
     image=subject.resize((w,h),Image.Resampling.LANCZOS)
-    center_x=(755,742,764)[variant-1]
-    center_y=(775,780,775)[variant-1]
+    center_x=(728,730,726)[variant-1]
+    center_y=(780,780,780)[variant-1]
     x=round(center_x-w/2)
     y=round(center_y-h/2)
     if x<393 or x+w>W-15 or y<375 or y+h>1165:
