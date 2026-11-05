@@ -4,6 +4,7 @@ Requires a separately configured HF ZeroGPU Space. No local Mac and no paid API.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -66,7 +67,9 @@ def generate(preview: dict, space: str, token: str|None) -> tuple[bytes,str]:
         result=client.predict(
             image=handle_file(str(source_path)) if image is not None else None,
             prompt=prompt,
-            seed=(variant*104729 + int(preview["preview_id"].replace("-","")[:6],16)) % 2**32,
+            seed=(variant*104729 + int(preview["preview_id"].replace("-","")[:6],16) +
+                  (int.from_bytes(hashlib.sha256(str(preview["generation_nonce"]).encode()).digest()[:4],"big")
+                   if preview.get("generation_nonce") else 0)) % 2**32,
             api_name="/generate",
         )
         if isinstance(result,dict):
