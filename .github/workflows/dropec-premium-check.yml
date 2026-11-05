@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install free editorial Lato typography
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-lato
       - name: Verify no GPU dependencies are needed by the CPU compositor
         run: |
           python -m pip install --disable-pip-version-check Pillow==12.1.0 requests==2.32.5
@@ -79,10 +81,12 @@ jobs:
             throw new Error('Conceptual labeling or fail-closed image extraction missing')
           }
           const theme = JSON.parse(fs.readFileSync('creative-studio/premium/editorial_theme.json','utf8'))
-          if (theme.formato.ancho!==1080 || theme.formato.alto!==1350 ||
-              theme.estilo.fondo!=='#FFFFFF' ||
-              theme.estilo.colores.principal!=='#29340A' ||
-              theme.estilo.colores.secundario!=='#ADE500' ||
+          if (theme.formato.ancho!==736 || theme.formato.alto!==1104 ||
+              theme.formato.proporcion!=='2:3' ||
+              theme.estilo.fondo!=='#F5F3EF' ||
+              theme.estilo.colores.principal!=='#000000' ||
+              theme.estilo.colores.fondo_central!=='#AAA6A0' ||
+              theme.composicion.panel_central.ancho!=='28%' ||
               theme.textos.contacto.telefono!==null ||
               theme.textos.contacto.direccion!==null) {
             throw new Error('Approved DropEC JSON design or verified-contact safeguards changed')
@@ -99,18 +103,22 @@ jobs:
               !brief.includes('NO split layout')) {
             throw new Error('AI must output complete isolated product, not a backdrop or branded ad')
           }
-          if (!compositor.includes('_organic_shapes') ||
+          if (!compositor.includes('_editorial_background') ||
+              !compositor.includes('_headline_layout') ||
               !compositor.includes('_extract_subject') ||
               !compositor.includes('_fit_product') ||
+              !compositor.includes('load_font(318,"black")') ||
               !compositor.includes('Image.alpha_composite') ||
               compositor.includes('ghost.text(') ||
-              compositor.includes('PRICE_PANEL_TOP')) {
-            throw new Error('JSON design needs organic shapes, alpha-cutout, subject forefront and no rigid card')
+              compositor.includes('PRICE_PANEL_TOP') ||
+              compositor.includes('_organic_shapes')) {
+            throw new Error('Luxury editorial design must have true Lato headline, gray center strip, large index and unoccluded product')
           }
           const cf = fs.readFileSync('.github/workflows/dropec-premium-cloudflare-ai.yml','utf8')
           const hf = fs.readFileSync('.github/workflows/dropec-premium-gpu.yml','utf8')
           if(!cf.includes("rembg[cpu]==2.0.86") ||
-             !hf.includes("rembg[cpu]==2.0.86")) {
+             !hf.includes("rembg[cpu]==2.0.86") ||
+             !cf.includes('fonts-lato') || !hf.includes('fonts-lato')) {
             throw new Error('Both free Premium runners must remove background on CPU')
           }
           if (!free.includes("cron: '*/15 * * * *'")) {
