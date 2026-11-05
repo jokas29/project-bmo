@@ -63,14 +63,17 @@ function validatedJobId(value: unknown): string {
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) throw new Error("Invalid job id");
   return id;
 }
-function allowedProductImage(value: unknown): string {
-  const raw = String(value || "");
-  const url = new URL(raw);
-  if (url.protocol !== "https:" || url.hostname !== "d39ru7awumhhs2.cloudfront.net" ||
-      !url.pathname.startsWith("/ecuador/products/") || url.username || url.password) {
-    throw new Error("Premium scenes need a public original product photo from the verified catalogue; private images are not sent to GPU.");
-  }
-  return url.href;
+function allowedProductImage(value: unknown): string | null {
+  // No source is a supported case: the GPU runner produces a labelled
+  // conceptual illustration rather than inventing an authentic SKU photo.
+  if(typeof value!=="string" || !value.trim())return null;
+  try {
+    const url=new URL(value);
+    if(url.protocol!=="https:" || url.hostname!=="d39ru7awumhhs2.cloudfront.net" ||
+       !url.pathname.startsWith("/ecuador/products/") || url.username || url.password ||
+       (url.port && url.port!=="443"))return null;
+    return url.href;
+  }catch{return null}
 }
 function prompt(product: string, variant: number): string {
   const environment = variant===3
@@ -79,12 +82,12 @@ function prompt(product: string, variant: number): string {
       ? "Premium editorial product photography in a dramatic angled composition, luminous gradients and polished reflections."
       : "Premium commercial hero photography, modern studio lighting, dynamic purple gradients, vivid lime accents, dramatic depth.";
   return [
-    "Use the provided exact product photograph as an image reference.",
+    "If a product reference is available, use only the physical item, not its marketing text, graphics or background. Otherwise make an explicitly conceptual illustration.",
     environment,
-    "The real physical product should retain its silhouette, color, parts, size relationships and materials.",
+    "No unverifiable details, exact performance claims, measurements or implied medical effects.",
     "No added accessories, no new functions, no claims, no hands manipulating the item, no fictitious packaging.",
     "NO writing, lettering, labels, logos, prices, watermarks, user interface, buttons or numbers.",
-    "4:5 portrait product ad visual, center-right visual interest and generous negative space for later typography.",
+    "4:5 portrait full-bleed product scene, hero subject in central 35%-80%, top third and bottom fifth empty for overlaid typography.",
     "Product reference: " + clean(product,100) + ".",
   ].join(" ");
 }
@@ -97,7 +100,6 @@ async function queue(req: Request) {
   if (!job || !job.publication_locked || !["pending","prepared","generating","awaiting_images","review"].includes(job.status)) {
     return response({ error: "Only locked, non-approved staging products may be tested" },409);
   }
-  allowedProductImage(job.source_image_url);
   const existing = await admin("/rest/v1/dropec_premium_previews?select=variant,status&job_id=eq."+id);
   let queued = 0;
   for (let variant=1;variant<=3;variant++) {
@@ -111,7 +113,7 @@ async function queue(req: Request) {
 async function status(req: Request) {
   await requireOwner(req);
   const id=validatedJobId(new URL(req.url).searchParams.get("job_id"));
-  const rows=await admin("/rest/v1/dropec_premium_previews?select=id,variant,status,poster_path,render_error,render_attempts,created_at,updated_at&job_id=eq."+id+"&order=variant.asc");
+  const rows=await admin("/rest/v1/dropec_premium_previews?select=id,variant,status,poster_path,reference_mode,render_error,render_attempts,created_at,updated_at&job_id=eq."+id+"&order=variant.asc");
   return response({ok:true, previews:rows, publication_locked:true, publishing_enabled:false});
 }
 async function claim(req: Request) {
@@ -132,13 +134,7 @@ async function claim(req: Request) {
     const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,product_name,product_price,source_image_url,status,publication_locked&id=eq."+preview.job_id+"&limit=1");
     const job=jobs?.[0];
     if(!job || !job.publication_locked || ["approved","ready_to_publish","archived"].includes(job.status)) continue;
-    let source: string;
-    try { source=allowedProductImage(job.source_image_url); }
-    catch {
-      await admin("/rest/v1/dropec_premium_previews?id=eq."+preview.id+"&status=eq.queued",{
-        method:"PATCH",body:JSON.stringify({status:"needs_source",render_error:"Use a verified public original product photo.",updated_at:new Date().toISOString()})});
-      continue;
-    }
+    const source=allowedProductImage(job.source_image_url);
     const acquired=await admin("/rest/v1/dropec_premium_previews?id=eq."+preview.id+"&status=eq.queued",{
       method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({
         status:"processing",render_started_at:new Date().toISOString(),render_attempts:Number(preview.render_attempts||0)+1,render_error:null,updated_at:new Date().toISOString(),
@@ -146,7 +142,8 @@ async function claim(req: Request) {
     });
     if(!Array.isArray(acquired)||!acquired.length)continue;
     return response({ok:true,processed:true,preview_id:preview.id,variant:preview.variant,prompt:preview.prompt,
-      product_name:clean(job.product_name,130),price:job.product_price,original_url:source,publication_locked:true});
+      product_name:clean(job.product_name,130),price:job.product_price,original_url:source,
+      original_available:!!source,publication_locked:true,conceptual_review_required:!source});
   }
   return response({ok:true,processed:false,reason:"no_eligible_premium_previews"});
 }
@@ -163,18 +160,24 @@ async function complete(req: Request) {
   if(body.byteLength<15000 || body.byteLength>7*1024*1024 || body[0]!==255 || body[1]!==216 || body[2]!==255) {
     return response({error:"Invalid JPEG preview"},422);
   }
-  const path=item.job_id+"/premium/variant-"+item.variant+"-"+id+".jpg";
+  const allowedModes=new Set(["catalog_reference","promotional_reference","low_resolution_reference","conceptual"]);
+  const mode=req.headers.get("x-dropec-reference-mode") || "conceptual";
+  if(!allowedModes.has(mode))return response({error:"Invalid reference mode"},422);
+  // Unique object per generation; previous images are never overwritten.
+  const path=item.job_id+"/premium/variant-"+item.variant+"-"+id+"-"+crypto.randomUUID()+".jpg";
   await admin("/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":"image/jpeg","x-upsert":"false"},body});
-  await admin("/rest/v1/dropec_premium_previews?id=eq."+id+"&status=eq.processing",{
-    method:"PATCH",body:JSON.stringify({status:"ready",poster_path:path,render_error:null,render_started_at:null,updated_at:new Date().toISOString()}),
+  const updated=await admin("/rest/v1/dropec_premium_previews?id=eq."+id+"&status=eq.processing",{
+    method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({status:"ready",poster_path:path,
+      reference_mode:mode,render_error:null,render_started_at:null,updated_at:new Date().toISOString()}),
   });
+  if(!Array.isArray(updated)||updated.length!==1)return response({error:"Preview changed while uploading"},409);
   return response({ok:true,status:"ready",publication_locked:true,publishing_enabled:false});
 }
 async function adopt(req: Request) {
   await requireOwner(req);
   const input=await req.json().catch(()=>( {} )) as Json;
   const id=validatedJobId(input.preview_id);
-  const previews=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,variant,status,poster_path&id=eq."+id+"&limit=1");
+  const previews=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,variant,status,poster_path,reference_mode&id=eq."+id+"&limit=1");
   const preview=previews?.[0];
   if(!preview || preview.status!=="ready" || !preview.poster_path) {
     return response({error:"Premium preview must be ready before manual adoption"},409);
@@ -199,7 +202,7 @@ async function adopt(req: Request) {
   const updated=await admin("/rest/v1/dropec_creative_slides?id=eq."+slide.id+"&status=eq."+slide.status,{
     method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({
       image_path:preview.poster_path,status:"uploaded",
-      review_notes:"Portada premium experimental, variante "+preview.variant+". Comprueba producto, precio y texto antes de aprobar.",
+      review_notes:"Portada Premium generada con IA ("+(preview.reference_mode||"sin validar")+"). Revisión de fidelidad, precio y texto obligatoria antes de aprobar.",
       render_error:null,render_after:null,render_started_at:null,updated_at:new Date().toISOString(),
     }),
   });
@@ -208,6 +211,33 @@ async function adopt(req: Request) {
     method:"PATCH",body:JSON.stringify({status:"review",publication_locked:true,caption_reviewed:false,updated_at:new Date().toISOString()}),
   });
   return response({ok:true,adopted_into_slide:1,publication_locked:true,publishing_enabled:false});
+}
+async function regenerate(req: Request) {
+  await requireOwner(req);
+  const input=await req.json().catch(()=>( {} )) as Json;
+  const id=validatedJobId(input.preview_id);
+  const rows=await admin("/rest/v1/dropec_premium_previews?select=id,job_id,status,poster_path,reference_mode&id=eq."+id+"&limit=1");
+  const preview=rows?.[0];
+  if(!preview || preview.status==="processing")return response({error:"Preview missing or currently rendering"},409);
+  const jobs=await admin("/rest/v1/dropec_creative_jobs?select=id,status,publication_locked&id=eq."+preview.job_id+"&limit=1");
+  const job=jobs?.[0];
+  if(!job || !job.publication_locked || ["approved","ready_to_publish","archived"].includes(job.status)){
+    return response({error:"Approved or publishable product cannot be regenerated"},409);
+  }
+  if(preview.poster_path){
+    await admin("/rest/v1/dropec_premium_preview_versions?on_conflict=preview_id,poster_path",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify({preview_id:id,poster_path:preview.poster_path,reference_mode:preview.reference_mode||"legacy_overlay"}),
+    });
+  }
+  const updated=await admin("/rest/v1/dropec_premium_previews?id=eq."+id+"&status=eq."+preview.status,{
+    method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({
+      status:"queued",poster_path:null,reference_mode:"conceptual",render_attempts:0,
+      render_after:null,render_started_at:null,render_error:null,updated_at:new Date().toISOString(),
+    }),
+  });
+  if(!Array.isArray(updated)||updated.length!==1)return response({error:"Preview changed during reset"},409);
+  return response({ok:true,queued:1,archived:!!preview.poster_path,publication_locked:true,publishing_enabled:false});
 }
 async function failed(req: Request) {
   await requireRunner(req);
@@ -239,6 +269,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST" && path.endsWith("/claim"))return await claim(req);
     if(req.method==="POST" && path.endsWith("/complete"))return await complete(req);
     if(req.method==="POST" && path.endsWith("/adopt"))return await adopt(req);
+    if(req.method==="POST" && path.endsWith("/regenerate"))return await regenerate(req);
     if(req.method==="POST" && path.endsWith("/failed"))return await failed(req);
     return response({error:"Not found"},404);
   } catch(e) {
