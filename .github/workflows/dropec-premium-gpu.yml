@@ -106,7 +106,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 creative-studio/premium/runner.py --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg 2>/tmp/dropec-gpu-error.log
+          python3 creative-studio/premium/runner.py --claim /tmp/dropec-claim.json --output /tmp/dropec-preview.jpg \
+            --reference-mode-output /tmp/dropec-reference-mode.txt 2>/tmp/dropec-gpu-error.log
 
       - name: Save preview only to private Supabase Storage
         if: steps.generate.outcome == 'success'
@@ -118,6 +119,7 @@ jobs:
           set -euo pipefail
           curl --fail-with-body --silent --show-error --max-time 60 -X POST "$ENDPOINT/complete?preview_id=$PREVIEW_ID" \
             -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" \
+            -H "X-DropEC-Reference-Mode: $(cat /tmp/dropec-reference-mode.txt)" \
             --data-binary @/tmp/dropec-preview.jpg > /tmp/dropec-complete.json
           python3 -c 'import json; assert json.load(open("/tmp/dropec-complete.json"))["status"] == "ready"; print("Preview stored privately; no posting.")'
 
