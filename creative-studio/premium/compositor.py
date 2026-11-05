@@ -195,9 +195,8 @@ def build_poster(scene: Image.Image, original: Optional[Image.Image],
     # deliberately occluded by the blended foreground, never pasted over SKU.
     ghost=ImageDraw.Draw(poster,"RGBA")
     ghost_font=load_font(162)
-    ghost.fill=(0,0,0,0)
-    ghost.text((36,610),"DropEC",font=ghost_font,
-               fill=(*(77,43,114) if style["pale"] else WHITE,35))
+    ghost_color=(77,43,114) if style["pale"] else WHITE
+    ghost.text((36,610),"DropEC",font=ghost_font,fill=(*ghost_color,35))
     _feathered_foreground(scene,poster,hero_top,HERO_BOTTOM)
     draw=ImageDraw.Draw(poster,"RGBA")
     # Brand/wordmark floats in the top negative space, no pill or header stripe.
