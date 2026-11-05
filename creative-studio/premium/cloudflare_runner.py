@@ -109,13 +109,18 @@ def generate_scene(preview: dict,original: Image.Image | None,account: str,token
     seed=(int(preview["preview_id"].replace("-","")[:7],16)+variation*104729)%(2**32)
     api=("https://api.cloudflare.com/client/v4/accounts/"+account+
          "/ai/run/"+MODEL)
-    fields={"prompt":prompt,"width":"1024","height":"1280","seed":str(seed)}
-    # A verified visual reference is optional. If absent, the prompt explicitly
-    # requests a conceptual illustration; the final image is permanently labelled.
-    kwargs=dict(headers={"Authorization":"Bearer "+token,"Accept":"application/json"},
-                data=fields,timeout=(15,120),allow_redirects=False)
+    # Cloudflare FLUX.2 requires multipart/form-data EVEN for text-only input.
+    # requests' data=dict alone sends x-www-form-urlencoded and gets HTTP 400.
+    multipart={
+        "prompt":(None,prompt),
+        "width":(None,"1024"),
+        "height":(None,"1280"),
+        "seed":(None,str(seed)),
+    }
     if original is not None:
-        kwargs["files"]={"input_image_0":("product-reference.png",reference_png(original),"image/png")}
+        multipart["input_image_0"]=("product-reference.png",reference_png(original),"image/png")
+    kwargs=dict(headers={"Authorization":"Bearer "+token,"Accept":"application/json"},
+                files=multipart,timeout=(15,120),allow_redirects=False)
     try:
         r=session.post(api,**kwargs)
     except requests.RequestException as e:
