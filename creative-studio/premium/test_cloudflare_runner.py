@@ -55,9 +55,10 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(generated.size,(900,1125))
         self.assertIn("/ai/run/"+MODEL,observed["url"])
         self.assertIn("input_image_0",observed["kwargs"]["files"])
-        self.assertIn("prompt",observed["kwargs"]["data"])
-        self.assertEqual(observed["kwargs"]["data"]["width"],"1024")
-        self.assertEqual(observed["kwargs"]["data"]["height"],"1280")
+        self.assertIn("prompt",observed["kwargs"]["files"])
+        self.assertEqual(observed["kwargs"]["files"]["width"],(None,"1024"))
+        self.assertEqual(observed["kwargs"]["files"]["height"],(None,"1280"))
+        self.assertNotIn("data",observed["kwargs"])
         self.assertEqual(observed["kwargs"]["headers"]["Authorization"],"Bearer fake-token")
         self.assertFalse(observed["kwargs"]["allow_redirects"])
     def test_402_quota_failure_no_fake_image(self):
@@ -94,9 +95,11 @@ class UniversalReferenceTests(unittest.TestCase):
                 return MockResponse()
         scene=generate_scene(preview(),None,"a"*32,"test",session=Session())
         self.assertEqual(scene.size,(900,1125))
-        self.assertNotIn("files",observed["request"])
-        self.assertIn("CONCEPTUAL",observed["request"]["data"]["prompt"])
-        self.assertIn("BOTTOM 82%",observed["request"]["data"]["prompt"])
+        self.assertIn("files",observed["request"])
+        self.assertNotIn("input_image_0",observed["request"]["files"])
+        self.assertIn("CONCEPTUAL",observed["request"]["files"]["prompt"][1])
+        self.assertIn("BOTTOM 82%",observed["request"]["files"]["prompt"][1])
+        self.assertNotIn("data",observed["request"])
 
     def test_produce_marks_no_source_as_conceptual(self):
         p=preview()
