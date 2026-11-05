@@ -320,6 +320,77 @@ async function saveBenefits(req: Request) {
 }
 
 
+// Only the same authenticated runner may import verified auto-managed Woo
+// products from the dedicated read-only production catalog bridge. No public
+// product or sales endpoint is exposed, and no Meta post is sent.
+async function ingestSelectedProducts(req:Request) {
+  await requireRunner(req);
+  if(Number(req.headers.get("content-length")||0)>40000)
+    return response({ok:false,error:"Catalog payload too large"},413);
+  const raw=await req.text();
+  if(raw.length>40000)return response({ok:false,error:"Catalog payload too large"},413);
+  const input=JSON.parse(raw||"{}") as Json;
+  if(input.source!=="approved_woo_auto_catalog"||!Array.isArray(input.products)||
+     input.products.length>20)return response({ok:false,error:"Untrusted catalog feed"},422);
+  const cfg=await admin("/rest/v1/dropec_creative_automation_settings?select=enabled,max_jobs_per_day&singleton=eq.true&limit=1");
+  if(!cfg?.[0]?.enabled)return response({ok:true,action:"paused",publishing_enabled:false});
+  const daily=Math.max(1,Math.min(12,Number(cfg[0].max_jobs_per_day||3)));
+  const today=new Date().toISOString().slice(0,10)+"T00:00:00Z";
+  const count=await admin("/rest/v1/dropec_creative_jobs?select=id&created_at=gte."+encodeURIComponent(today)+"&limit=100");
+  if(count.length>=daily)return response({ok:true,action:"daily_limit",max:daily,publishing_enabled:false});
+  const busy=await admin("/rest/v1/dropec_creative_slides?select=id&status=in.(pending,rendering)&render_error=in.(premium_carousel_queued,premium_carousel_active)&limit=10");
+  if(busy.length>=6)return response({ok:true,action:"backlog_limit",publishing_enabled:false});
+  for(const item of input.products){
+    if(!item||typeof item!=="object"||Array.isArray(item))continue;
+    const woo=Number(item.woo_product_id),dropi=Number(item.dropi_product_id),price=Number(item.product_price);
+    const name=clean(item.product_name,120);
+    const photo=allowedProductImage(item.source_image_url);
+    const benefits=validatedBenefits(item.benefits,item.benefits_source);
+    if(!Number.isSafeInteger(woo)||woo<=0||!Number.isSafeInteger(dropi)||dropi<=0||
+       !Number.isFinite(price)||price<12||price>60||name.length<7||
+       !photo||!benefits)continue;
+    const existing=await admin("/rest/v1/dropec_creative_jobs?select=id&woo_product_id=eq."+woo+"&limit=1");
+    if(existing.length)continue;
+    const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("dropec-premium-woo-v1:"+woo)));
+    digest[6]=(digest[6]&15)|80;digest[8]=(digest[8]&63)|128;
+    const h=Array.from(digest.slice(0,16),b=>b.toString(16).padStart(2,"0")).join("");
+    const id=h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20,32);
+    const hashtags=["#DropEC","#Ecuador"];
+    const caption=name+"\\n\\nPrecio de catálogo $"+price.toFixed(2)+
+      " (sujeto a confirmación).\\nConsulta stock y costo de envío para tu ciudad antes de pagar."+
+      "\\nEscríbenos por mensaje para una cotización.\\n\\n"+hashtags.join(" ");
+    const data={
+      id,woo_product_id:woo,dropi_product_id:dropi,product_name:name,product_price:price,
+      source_image_url:photo,product_notes:"Ficha comercial previamente aprobada en WooCommerce. Beneficios declarados por proveedor; validar antes de publicar.",
+      concept:"producto_destacado",design_brief:"DropEC Premium violeta/Anton, producto exacto centrado, cuatro imágenes privadas de 2:3.",
+      prompt_bundle:{version:"dropec_auto_premium_v1",output_px:"736x1104",aspect_ratio:"2:3",
+        visual_system:{name:"DropEC editorial premium",theme:"Fondo morado, tipografía Anton, lima, producto protagonista"},
+        slides:[
+          {slide:1,role:"portada",headline:name},
+          {slide:2,role:"problema",headline:"¿CONOCES ESTE PRODUCTO?"},
+          {slide:3,role:"beneficios",headline:"3 BENEFICIOS DEL PRODUCTO",benefits,benefits_source:"supplier_listing"},
+          {slide:4,role:"cierre",headline:name+" · $"+price.toFixed(2)}
+        ],cta:"Solicita tu cotización",shipping_note:"Envío por confirmar antes de pagar"},
+      target_platforms:["instagram","facebook"],status:"pending",publication_locked:true,
+      caption_draft:caption,hashtags,caption_reviewed:false,
+    };
+    const insert=await admin("/rest/v1/dropec_creative_jobs?on_conflict=id",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
+      body:JSON.stringify(data),
+    });
+    if(!Array.isArray(insert)||!insert.length)continue;
+    await admin("/rest/v1/dropec_creative_slides?on_conflict=job_id,slide_number",{
+      method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},
+      body:JSON.stringify([1,2,3,4].map(n=>({job_id:id,slide_number:n,
+        role:["portada","problema","beneficios","cierre"][n-1],
+        status:"pending",image_path:null,review_notes:null}))),
+    });
+    return response({ok:true,action:"product_imported",woo_product_id:woo,job_id:id,
+      publication_locked:true,publishing_enabled:false});
+  }
+  return response({ok:true,action:"no_new_valid_product",publishing_enabled:false});
+}
+
 // OIDC-only autopilot. No browser visit, manual cover approval or social publisher.
 // It only picks new, already selected, private jobs with a verified catalogue
 // reference and three sourced, distinct product benefits.
@@ -602,6 +673,7 @@ Deno.serve(async (req: Request) => {
     gpu_required:true,no_paid_api:true,model:"FLUX.2-klein-4B",
   });
   try {
+    if(req.method==="POST" && path.endsWith("/carousel/ingest"))return await ingestSelectedProducts(req);
     if(req.method==="POST" && path.endsWith("/carousel/auto-prepare"))return await autoPrepareCarousel(req);
     if(req.method==="POST" && path.endsWith("/carousel/benefits"))return await saveBenefits(req);
     if(req.method==="POST" && path.endsWith("/carousel/prepare"))return await prepareCarousel(req);
