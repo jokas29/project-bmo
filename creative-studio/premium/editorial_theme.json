@@ -1,39 +1,164 @@
 {
   "tipo": "publicidad_de_producto",
-  "formato": {"ancho":1080,"alto":1350,"orientacion":"vertical","proporcion":"4:5"},
+  "formato": {
+    "ancho": 736,
+    "alto": 1104,
+    "orientacion": "vertical",
+    "proporcion": "2:3",
+    "destino": "previsualizacion_editorial_privada"
+  },
   "estilo": {
-    "diseno": "moderno, minimalista y comercial",
-    "calidad": "premium",
-    "fondo": "#FFFFFF",
+    "diseno": "minimalista, editorial, tecnologico y premium",
+    "estetica": "campaña de lujo moderna con jerarquia tipografica dramatica, sin copiar marcas",
+    "fondo": "#F5F3EF",
     "colores": {
-      "principal": "#29340A",
-      "secundario": "#ADE500",
-      "texto_claro": "#FFFFFF",
-      "texto_oscuro": "#29340A"
+      "principal": "#000000",
+      "secundario": "#B5B1AB",
+      "fondo_claro": "#F5F3EF",
+      "fondo_central": "#AAA6A0",
+      "texto": "#111111"
     },
-    "tipografia": {"familia":"sans-serif","titulo":"bold","descripcion":"regular","boton":"bold"}
+    "tipografia": {
+      "familia": "Lato, alternativa libre a Helvetica Neue",
+      "titulo": "black",
+      "descripcion": "regular",
+      "detalles": "light, medium",
+      "caracteristicas": "sans-serif compacta",
+      "espaciado_letras": "controlado"
+    }
   },
   "composicion": {
-    "fondo_superior": {"tipo":"forma_organica","color":"#29340A","posicion":"superior_izquierda","bordes":"curvos y redondeados","tamano":"grande"},
-    "fondo_inferior": {"tipo":"forma_organica","color":"#ADE500","posicion":"inferior_derecha","bordes":"curvos y redondeados","tamano":"grande"},
-    "producto_visual": {"posicion":"centro_derecha","escala":"grande","perspectiva":"tres cuartos","estilo":"fotografia de producto realista","iluminacion":"suave de estudio","sombras":"realistas y difusas","superposicion":"delante de las formas organicas"}
+    "estructura": {
+      "tipo": "poster publicitario vertical",
+      "distribucion": "asimetrica y editorial",
+      "espaciado": "amplio y equilibrado",
+      "superposiciones": true
+    },
+    "fondo_principal": {
+      "color": "#F5F3EF",
+      "textura": "lisa",
+      "iluminacion": "suave"
+    },
+    "panel_central": {
+      "tipo": "rectangulo vertical",
+      "color": "#AAA6A0",
+      "posicion": "centro",
+      "ancho": "28%",
+      "alto": "92%",
+      "efecto": "contraste de fondo"
+    },
+    "producto_visual": {
+      "objeto": "producto_real_o_ilustracion_conceptual",
+      "cantidad": "una unidad, salvo evidencia fiable de más vistas",
+      "posicion": "centro",
+      "escala": "muy grande",
+      "perspectiva": "tres cuartos, solo si respeta producto",
+      "estilo": "fotografia hiperrealista",
+      "iluminacion": "estudio profesional",
+      "sombras": "realistas y difusas",
+      "superposicion": "delante de panel, grafismo y número editorial"
+    },
+    "numero_decorativo": {
+      "contenido": "numero_de_la_propuesta_01_02_03",
+      "posicion": "inferior_izquierda",
+      "color": "#111111",
+      "tamano": "gigante",
+      "superposicion": "detras_del_producto"
+    },
+    "columna_derecha": {
+      "uso": "solo_caracteristicas_verificadas",
+      "sin_datos": "omitir_texto"
+    },
+    "variantes_color": {
+      "uso": "solo_colores_verificados",
+      "sin_datos": "omitir_muestras"
+    }
   },
   "textos": {
-    "nombre_producto": {"contenido":"nombre_del_catalogo","posicion":"superior_izquierda","color":"#FFFFFF","tamano":"grande","peso":"bold","alineacion":"izquierda"},
-    "descripcion_producto": {"contenido":"solo_descripcion_verificada","posicion":"debajo_del_nombre","color":"#FFFFFF","tamano":"mediano","peso":"regular"},
-    "boton": {"contenido":"SOLICITA TU COTIZACIÓN","fondo":"#ADE500","color_texto":"#29340A","posicion":"izquierda_centro_inferior","forma":"rectangulo_con_esquinas_diagonales","peso":"bold"},
-    "contacto": {"telefono":null,"direccion":null,"nota":"No fabricar datos de contacto"},
-    "precio": {"contenido":"precio_del_catalogo_si_existe","color":"#29340A"}
+    "marca": {
+      "contenido": "DropEC",
+      "posicion": "superior_izquierda",
+      "color": "#111111",
+      "tamano": "pequeno",
+      "peso": "medium",
+      "icono": null
+    },
+    "nombre_producto": {
+      "contenido": "nombre_del_catalogo",
+      "posicion": "superior_izquierda",
+      "color": "#000000",
+      "tamano": "extra_grande",
+      "peso": "black",
+      "alineacion": "izquierda",
+      "interlineado": "compacto"
+    },
+    "descripcion_producto": {
+      "contenido": "solo_datos_verificados",
+      "posicion": "debajo_del_nombre",
+      "peso": "regular",
+      "si_no_hay": "omitir"
+    },
+    "texto_superior_derecho": {
+      "contenido": "DROP EC / EDICION N",
+      "posicion": "superior_derecha",
+      "tamano": "muy_pequeno",
+      "espaciado_letras": "amplio",
+      "decoracion": "linea horizontal inferior"
+    },
+    "numero_decorativo": {
+      "contenido": "indice_de_propuesta",
+      "posicion": "inferior_izquierda"
+    },
+    "precio": {
+      "contenido": "precio_de_catalogo_si_existe",
+      "posicion": "inferior_izquierda",
+      "sin_precio": "omitir"
+    },
+    "llamada_a_la_accion": {
+      "contenido": "SOLICITA TU COTIZACIÓN",
+      "posicion": "inferior_izquierda",
+      "decoracion": "linea_fina"
+    },
+    "eslogan_inferior": {
+      "contenido": null,
+      "motivo": "No inventar claims"
+    },
+    "contacto": {
+      "telefono": null,
+      "direccion": null,
+      "motivo": "Sin información verificada"
+    }
+  },
+  "caracteristicas": {
+    "posicion": "columna_derecha",
+    "elementos": [],
+    "fuente": "solo_catalogo_verificado",
+    "estilo_iconos": {
+      "tipo": "lineal",
+      "color": "#111111",
+      "grosor": "fino"
+    }
+  },
+  "variantes_color": {
+    "colores": [],
+    "fuente": "solo_catalogo_verificado"
   },
   "instrucciones": {
-    "mantener_diseno_original":true,
-    "mantener_distribucion":true,
-    "mantener_colores":true,
-    "mantener_producto_visual":true,
-    "mantener_boton_y_contacto":true,
-    "no_agregar_textos_adicionales":true,
-    "resultado":"publicidad comercial integrada de una sola composicion",
-    "producto_dinamico":true,
-    "publicacion_automatica":false
+    "mantener_diseno_original": true,
+    "mantener_composicion": true,
+    "mantener_colores": true,
+    "mantener_tipografia": true,
+    "mantener_producto_visual": true,
+    "mantener_panel_central": true,
+    "mantener_elementos_decorativos": true,
+    "mantener_caracteristicas": true,
+    "mantener_textos_secundarios": true,
+    "reemplazar_nombre_por": "producto",
+    "reemplazar_descripcion_por": "solo_descripcion_verificada",
+    "no_agregar_textos_adicionales": true,
+    "calidad": "ultra alta",
+    "resultado": "poster editorial minimalista con sujeto hiperrealista y tipografia dominante",
+    "producto_dinamico": true,
+    "publicacion_automatica": false
   }
 }

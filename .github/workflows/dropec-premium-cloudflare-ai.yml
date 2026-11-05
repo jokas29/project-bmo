@@ -92,6 +92,10 @@ jobs:
           print("Leased one private premium job" if done else "Nothing to generate; no AI inference used")
           PY
 
+      - name: Install open-source editorial Lato font family
+        if: steps.claim.outputs.processed == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-lato
+
       - name: Install pinned CPU compositor dependencies
         if: steps.claim.outputs.processed == 'true'
         run: python3 -m pip install --disable-pip-version-check --no-input Pillow==12.1.0 requests==2.32.5 'rembg[cpu]==2.0.86'

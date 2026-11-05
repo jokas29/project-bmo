@@ -39,7 +39,7 @@
  </div>
  <div class="bridge" id="premiumlab">
   <div class="row"><h2 style="margin:0">Laboratorio Premium · FLUX.2 Klein 4B</h2><span class="tag">Experimental · Privado</span></div>
-  <p class="muted">Prueba visual: dos portadas y una escena editorial de IA. La foto del catálogo sirve solo de referencia. FLUX intenta mostrar el producto completo y en primer plano; el diseño final reserva una zona para su imagen sin que el precio ni el título la tapen. Si falta una referencia fiable, la pieza se identifica como conceptual. Las propuestas se procesan en la nube aproximadamente cada 15 minutos (GitHub puede retrasarse); puedes cerrar la página. Todo queda privado, sin publicaciones automáticas.</p>
+  <p class="muted">Tres conceptos editoriales privados (736 × 1104, formato 2:3): tipografía Lato Black, fondo marfil, panel gris central y producto grande por delante del grafismo. El producto se genera usando la foto del catálogo como referencia, cuando existe; sin foto se marca como ilustración conceptual. Solo mostramos precios y características verificadas; este formato todavía no es una exportación final para redes. GitHub procesa la cola aproximadamente cada 15 minutos (puede retrasarse) aunque cierres la página. Nada se publica automáticamente.</p>
   <div class="row" style="justify-content:flex-start"><button id="premiumqueue" class="primary">Preparar hasta 3 ideas Premium</button><button id="premiumrefresh">Actualizar Premium</button></div>
   <small id="premiumstate" role="status">No se publica ni se reemplaza ninguna portada sin tu aprobación.</small>
   <div class="cards" id="premiumpreviews"></div>
@@ -364,7 +364,7 @@ async function refreshPremium(silent=false){
    " generando. GitHub revisa la cola aproximadamente cada 15 minutos (puede retrasarse). Puedes cerrar la página. Nada se publica automáticamente.";
   for(const p of previews){
    const card=text("article",null,"card"),body=text("div",null,"card-body");
-   const label=["Portada A","Portada B","Escena editorial"][Number(p.variant)-1]||"Propuesta";
+   const label=["Editorial 01","Editorial 02","Editorial 03"][Number(p.variant)-1]||"Propuesta";
    const retryAfter=p.render_after&&Date.parse(p.render_after)>Date.now()
       ? " · Reintento no antes de "+new Date(p.render_after).toLocaleString("es-EC",{dateStyle:"short",timeStyle:"short"}) : "";
    const displayStatus=p.status==="ready"?"Lista para inspección":

@@ -94,6 +94,10 @@ jobs:
           print("Premium preview leased" if processed else "No eligible premium preview; no GPU time used")
           PY
 
+      - name: Install open-source editorial Lato font family
+        if: steps.claim.outputs.processed == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-lato
+
       - name: Install small CPU poster compositor and Gradio client
         if: steps.claim.outputs.processed == 'true'
         run: |
