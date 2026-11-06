@@ -1,0 +1,35 @@
+name: DropEC Shipping Worker B (manual diagnostics only)
+
+# No schedule, automatic trigger, provider quote or order operation.
+# PR #13 remains draft; OIDC claim policy only accepts this workflow on MAIN.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Offline, or read-only OIDC identity check after separate authorization"
+        type: choice
+        options:
+          - offline
+          - read_only_preflight
+        default: offline
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  manual-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Manual offline or read-only Supabase B OIDC preflight
+        env:
+          DROPEC_SHIPPING_B_WORKFLOW_MODE: ${{ inputs.mode }}
+        run: |
+          deno run --allow-env --allow-net=token.actions.githubusercontent.com,actions.githubusercontent.com,pipelines.actions.githubusercontent.com,ubxkqbnzdtgfvphwohzm.supabase.co dropec/shipping-readiness/worker_b_preflight_cli.ts
+          echo "No shipping claim, WordPress call, payment or order operation executed."

@@ -1,0 +1,44 @@
+name: DropEC Supabase B Shipping Preflight (manual, no quotes)
+
+# Intentionally NO schedule, push, pull_request, workflow_run or auto trigger.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  b-readonly-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify GitHub OIDC can authenticate to Supabase B (NO provider calls)
+        env:
+          PREFLIGHT_URL: https://ubxkqbnzdtgfvphwohzm.supabase.co/functions/v1/dropec-shipping-preflight-b/status
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "GitHub OIDC unavailable. Nothing sent to Dropi or WordPress."
+            exit 1
+          fi
+          json="$(curl --fail-with-body -fsSL --retry 0 \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=dropec-shipping-preflight-b")"
+          token="$(printf '%s' "$json" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          result="$(curl --fail-with-body -fsS --retry 0 -X POST \
+            -H "Authorization: Bearer $token" \
+            -H "Content-Type: application/json" \
+            "$PREFLIGHT_URL")"
+          printf '%s' "$result" | python3 -c '
+          import json,sys
+          data=json.load(sys.stdin)
+          assert data.get("ok") is True and data.get("project")=="supabase-b", "B authorization failed"
+          assert data.get("mode")=="preflight_only_no_provider_calls", "unexpected bridge behavior"
+          assert data.get("can_process_jobs") is False, "unsafe workflow"
+          assert data.get("can_call_dropi") is False, "unsafe Dropi access"
+          assert data.get("can_call_woocommerce") is False, "unsafe WordPress access"
+          print("GitHub -> Supabase B OIDC preflight authenticated. No providers contacted.")
+          '
